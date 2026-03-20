@@ -265,6 +265,13 @@ def game_review(game_id):
     )
 
 
+@app.route("/api/critical/<int:game_id>")
+def get_critical(game_id):
+    """Top-5 moves by cp_loss for a game, ordered by move index."""
+    rows = database.get_critical_moves(game_id, n=5)
+    return jsonify(rows)
+
+
 @app.route("/api/pv", methods=["POST"])
 def get_pv():
     import chess as _chess
