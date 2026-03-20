@@ -40,24 +40,40 @@
 
   /* ── Mobile ─────────────────────────────────────────────── */
   @media (max-width: 700px) {
-    /* Board: shrink to viewport width */
-    #board, #board-overlay { width: calc(100vw - 56px) !important; height: calc(100vw - 56px) !important; }
-    .eval-bar-wrap { height: calc(100vw - 56px) !important; }
+    /* Board: shrink to fit viewport (20px = eval bar + gap + page padding) */
+    #board           { width:  calc(100vw - 68px) !important;
+                       height: calc(100vw - 68px) !important; }
+    #board-overlay   { width:  calc(100vw - 68px) !important;
+                       height: calc(100vw - 68px) !important; }
+    .eval-bar-wrap   { height: calc(100vw - 68px) !important; }
 
-    /* Board wrapper: full-width */
-    #board-outer { flex-direction: column !important; }
+    /* Kill hardcoded left-padding on all game sub-rows */
+    #nav-row, .overlay-row, #move-detail,
+    #candidates-panel, #compare-panel, #training-panel {
+      padding-left: 0 !important;
+    }
+
+    /* Board outer: stack vertically, fill width */
+    #board-outer { flex-direction: column !important; width: 100% !important; }
+
+    /* Left column (eval bar + board + controls): full width */
+    #board-outer > div:first-child { width: 100% !important; }
+
+    /* Override hardcoded 432px widths */
+    .move-detail, #candidates-panel, #compare-panel,
+    #training-panel, #eval-graph { width: 100% !important; }
+
+    /* Nav button row: wrap and compress */
+    #nav-row { flex-wrap: wrap !important; gap: 4px !important; }
 
     /* Move list: full width, fixed height */
-    .move-list { height: 220px !important; }
-
-    /* Detail & overlays: full width */
-    .move-detail, #candidates-panel { width: 100% !important; }
-
-    /* Nav buttons wrap */
-    #nav-row { flex-wrap: wrap !important; }
+    .move-list { height: 200px !important; }
 
     /* Accuracy cards: single column */
     .acc-grid { grid-template-columns: 1fr !important; }
+
+    /* Side-by-side compare boards: stack on mobile */
+    .compare-board-wrap { flex-direction: column !important; align-items: center !important; }
   }
 </style>
 {% endblock %}
@@ -201,7 +217,7 @@
     </div>
 
     <!-- Overlay toggles -->
-    <div style="display:flex; align-items:center; gap:6px; margin-top:10px; padding-left:28px; flex-wrap:wrap;">
+    <div class="overlay-row" style="display:flex; align-items:center; gap:6px; margin-top:10px; padding-left:28px; flex-wrap:wrap;">
       <button id="toggle-last"  onclick="toggleOverlay('last')"
               class="btn btn-secondary btn-sm" style="border-color:#b5a800;">
         ▶ Last move
