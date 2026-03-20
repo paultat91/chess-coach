@@ -782,10 +782,12 @@ if (GRAPH_CANVAS) {
 // Tap / click the board → advance to next move (convenient on mobile)
 const _tapLayer = document.getElementById('board-tap-layer');
 if (_tapLayer) {
-  _tapLayer.addEventListener('click', () => {
+  _tapLayer.addEventListener('click', e => {
     // trainingActive may be undefined if training branch not loaded
     if (typeof trainingActive !== 'undefined' && trainingActive) return;
-    nextMove();
+    const rect = _tapLayer.getBoundingClientRect();
+    const tappedRight = (e.clientX - rect.left) >= rect.width / 2;
+    if (tappedRight) nextMove(); else prevMove();
   });
 }
 
