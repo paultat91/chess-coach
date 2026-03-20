@@ -270,6 +270,14 @@
           <option value="12">Last 12 months</option>
         </select>
       </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;
+                       font-size:13px; color:#8b949e;">
+          <input type="checkbox" id="sync-auto-analyse" checked
+                 style="accent-color:#58a6ff; width:14px; height:14px;">
+          Auto-analyse imported games in the background
+        </label>
+      </div>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button class="btn btn-secondary" onclick="closeSyncModal()">Cancel</button>
         <button class="btn btn-primary" onclick="runSync()">Sync Now</button>
@@ -305,9 +313,11 @@ function runSync() {
   document.getElementById('sync-busy').style.display = 'block';
   document.getElementById('sync-result').style.display = 'none';
 
-  const months = document.getElementById('sync-months').value;
+  const months      = document.getElementById('sync-months').value;
+  const autoAnalyse = document.getElementById('sync-auto-analyse').checked ? '1' : '0';
   const body = new FormData();
   body.append('months', months);
+  body.append('auto_analyse', autoAnalyse);
 
   fetch('/sync', { method: 'POST', body })
     .then(r => r.json())
@@ -319,7 +329,7 @@ function runSync() {
         el.innerHTML = `<div style="color:#f85149; font-size:14px;">⚠ ${d.error}</div>`;
       } else {
         el.innerHTML = `
-          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; text-align:center;">
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; text-align:center; margin-bottom:${d.queued_for_analysis > 0 ? 10 : 0}px;">
             <div style="background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:14px;">
               <div style="font-size:26px; font-weight:700; color:#56d364;">${d.imported}</div>
               <div style="font-size:12px; color:#8b949e; margin-top:3px;">New games</div>
@@ -334,8 +344,11 @@ function runSync() {
               <div style="font-size:12px; color:#8b949e; margin-top:3px;">Errors</div>
             </div>
           </div>
+          ${d.queued_for_analysis > 0
+            ? `<p style="font-size:13px;color:#58a6ff;margin-top:8px;text-align:center;">⚙ ${d.queued_for_analysis} game(s) queued for background analysis.</p>`
+            : ''}
           ${d.imported > 0
-            ? '<p style="font-size:13px; color:#8b949e; margin-top:12px; text-align:center;">Click Done to see your new games.</p>'
+            ? '<p style="font-size:13px;color:#8b949e;margin-top:6px;text-align:center;">Click Done to see your new games.</p>'
             : ''}`;
       }
     })

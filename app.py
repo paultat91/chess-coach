@@ -350,14 +350,28 @@ def backfill_openings():
     return redirect(url_for("index"))
 
 
+def _auto_enqueue_unanalysed(imported_count: int) -> int:
+    """After a sync, enqueue all unanalysed games for background analysis.
+    Returns the number of jobs queued."""
+    if imported_count == 0:
+        return 0
+    games = database.get_unanalysed_games()
+    for g in games:
+        worker.enqueue("analyse", game_id=g["id"])
+    return len(games)
+
+
 @app.route("/sync", methods=["POST"])
 def sync_chesscom():
     player = database.get_setting("player_name", "").strip()
     if not player:
         return jsonify({"error": "No player name set. Add it in Settings first."}), 400
-    months = int(request.form.get("months", 1))
+    months   = int(request.form.get("months", 1))
+    auto_analyse = request.form.get("auto_analyse", "1") == "1"
     try:
-        counts = sync_module.sync(player, months=months)
+        counts  = sync_module.sync(player, months=months)
+        queued  = _auto_enqueue_unanalysed(counts["imported"]) if auto_analyse else 0
+        counts["queued_for_analysis"] = queued
         return jsonify(counts)
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
