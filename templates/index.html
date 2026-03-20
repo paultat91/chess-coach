@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% block title %}My Games — Chess Coach{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+  <h1 style="font-size:22px; font-weight:700;">My Games</h1>
+  <div style="display:flex; gap:8px; align-items:center;">
+    {% if player_name %}
+    <button class="btn btn-secondary" onclick="openSyncModal()" title="Sync games from Chess.com">
+      ⟳ Sync Chess.com
+    </button>
+    {% endif %}
+    <button class="btn btn-primary" onclick="document.getElementById('import-modal').style.display='flex'">
+      + Import PGN
+    </button>
+  </div>
+</div>
+
+<!-- Search / filter / sort bar -->
+<form method="GET" action="/" id="filter-form">
+  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; align-items:center;">
+
+    <!-- Search -->
+    <div style="position:relative; flex:1; min-width:200px;">
+      <input type="text" name="q" value="{{ q }}"
+             placeholder="Search opponent or opening…"
+             style="width:100%; padding:7px 32px 7px 12px; background:#0d1117;
+                    border:1px solid #30363d; border-radius:6px; color:#e6edf3;
+                    font-size:13px; outline:none;"
+             oninput="this.form.submit()">
+      {% if q %}
+      <a href="/" style="position:absolute; right:8px; top:50%; transform:translateY(-50%);
+                         color:#6e7681; text-decoration:none; font-size:14px;">✕</a>
+      {% endif %}
+    </div>
+
+    <!-- Result filter -->
+    <div style="display:flex; gap:2px; background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:2px;">
+      {% for val, label in [('','All'), ('win','Wins'), ('loss','Losses'), ('draw','Draws')] %}
+      <a href="{{ url_for('index', q=q, result=val, color=color_filter, analyzed=analyzed_filter, sort=sort_by, dir=sort_dir) }}"
+         style="padding:4px 10px; border-radius:4px; font-size:12px; text-decoration:none;
+                {% if result_filter == val %}background:#21262d; color:#e6edf3;{% else %}color:#8b949e;{% endif %}">
+        {{ label }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Colour filter (only when player set) -->
+    {% if player_name %}
+    <div style="display:flex; gap:2px; background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:2px;">
+      {% for val, label in [('','⬜⬛'), ('white','⬜ White'), ('black','⬛ Black')] %}
+      <a href="{{ url_for('index', q=q, result=result_filter, color=val, analyzed=analyzed_filter, sort=sort_by, dir=sort_dir) }}"
+         style="padding:4px 10px; border-radius:4px; font-size:12px; text-decoration:none;
+                {% if color_filter == val %}background:#21262d; color:#e6edf3;{% else %}color:#8b949e;{% endif %}">
+        {{ label }}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Time control filter -->
+    <div style="display:flex; gap:2px; background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:2px;">
+      {% for val, label in [('','All'), ('bullet','Bullet'), ('blitz','Blitz'), ('rapid','Rapid'), ('classical','Classical'), ('daily','Daily')] %}
+      <a href="{{ url_for('index', q=q, result=result_filter, color=color_filter, tc=val, analyzed=analyzed_filter, sort=sort_by, dir=sort_dir) }}"
+         style="padding:4px 10px; border-radius:4px; font-size:12px; text-decoration:none;
+                {% if request.args.get('tc','') == val %}background:#21262d; color:#e6edf3;{% else %}color:#8b949e;{% endif %}">
+        {{ label }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Analyzed filter -->
+    <div style="display:flex; gap:2px; background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:2px;">
+      {% for val, label in [('','All'), ('yes','Analyzed'), ('no','Not analyzed')] %}
+      <a href="{{ url_for('index', q=q, result=result_filter, color=color_filter, analyzed=val, sort=sort_by, dir=sort_dir) }}"
+         style="padding:4px 10px; border-radius:4px; font-size:12px; text-decoration:none;
+                {% if analyzed_filter == val %}background:#21262d; color:#e6edf3;{% else %}color:#8b949e;{% endif %}">
+        {{ label }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Sort -->
+    <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+      <span style="font-size:12px; color:#6e7681;">Sort:</span>
+      <select name="sort" onchange="this.form.submit()"
+              style="padding:5px 8px; background:#0d1117; border:1px solid #30363d;
+                     border-radius:6px; color:#e6edf3; font-size:12px; cursor:pointer;">
+        {% for val, label in [('date','Date'), ('accuracy','Accuracy'), ('opponent','Opponent'), ('opening','Opening')] %}
+        <option value="{{ val }}" {% if sort_by == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <a href="{{ url_for('index', q=q, result=result_filter, color=color_filter, analyzed=analyzed_filter, sort=sort_by, dir=('asc' if sort_dir=='desc' else 'desc')) }}"
+         style="padding:5px 8px; background:#0d1117; border:1px solid #30363d; border-radius:6px;
+                color:#8b949e; text-decoration:none; font-size:13px;" title="Toggle direction">
+        {{ '↓' if sort_dir == 'desc' else '↑' }}
+      </a>
+    </div>
+  </div>
+</form>
+
+<!-- Result count -->
+<div style="font-size:12px; color:#6e7681; margin-bottom:10px;">
+  {{ total }} game{{ 's' if total != 1 }}{% if q or result_filter or color_filter or analyzed_filter %} matching filters{% endif %}
+</div>
+
+{% if not games %}
+<div class="card" style="text-align:center; padding:64px 24px;">
+  <div style="font-size:52px; margin-bottom:16px;">♟</div>
+  <h2 style="font-size:18px; margin-bottom:8px; color:#8b949e;">No games yet</h2>
+  <p style="color:#6e7681; margin-bottom:24px;">Import a PGN to get started. You can export games from Chess.com or Lichess.</p>
+  <button class="btn btn-primary" onclick="document.getElementById('import-modal').style.display='flex'">
+    Import PGN
+  </button>
+</div>
+{% else %}
+<div class="card" style="padding:0; overflow:hidden;">
+  <table style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr style="border-bottom:1px solid #30363d;">
+        {% macro sort_th(label, col) %}
+        {% set active = sort_by == col %}
+        {% set next_dir = 'asc' if (active and sort_dir == 'desc') else 'desc' %}
+        <th style="padding:11px 16px; text-align:left; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">
+          <a href="{{ url_for('index', q=q, result=result_filter, color=color_filter, analyzed=analyzed_filter, sort=col, dir=next_dir) }}"
+             style="color:{{ '#e6edf3' if active else '#8b949e' }}; text-decoration:none; display:flex; align-items:center; gap:3px;">
+            {{ label }}{% if active %}<span>{{ '↓' if sort_dir == 'desc' else '↑' }}</span>{% endif %}
+          </a>
+        </th>
+        {% endmacro %}
+        {{ sort_th('Opponent', 'opponent') }}
+        <th style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Color</th>
+        <th style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Time</th>
+        <th style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Result</th>
+        {{ sort_th('Opening', 'opening') }}
+        {{ sort_th('My Accuracy', 'accuracy') }}
+        {{ sort_th('Date', 'date') }}
+        <th style="padding:11px 16px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in games %}
+      {% if player_name %}
+        {% set p = player_name | lower %}
+        {% set my_color = 'white' if g.white | lower == p else ('black' if g.black | lower == p else None) %}
+        {% set opponent = g.black if my_color == 'white' else g.white %}
+        {% set my_acc = g.white_accuracy if my_color == 'white' else g.black_accuracy %}
+        {% if my_color == 'white' %}
+          {% set won = g.result == '1-0' %}
+          {% set lost = g.result == '0-1' %}
+        {% else %}
+          {% set won = g.result == '0-1' %}
+          {% set lost = g.result == '1-0' %}
+        {% endif %}
+      {% else %}
+        {% set my_color = None %}
+        {% set opponent = g.black %}
+        {% set my_acc = g.white_accuracy %}
+        {% set won = g.result == '1-0' %}
+        {% set lost = g.result == '0-1' %}
+      {% endif %}
+      <tr style="border-bottom:1px solid #21262d;"
+          onmouseover="this.style.background='#1c2128'"
+          onmouseout="this.style.background=''">
+        <td style="padding:11px 16px; font-weight:500;">
+          {% if player_name and my_color %}{{ opponent }}{% else %}{{ g.white }} vs {{ g.black }}{% endif %}
+        </td>
+        <td style="padding:11px 16px; font-size:13px;">
+          {% if my_color == 'white' %}
+            <span title="You played White">⬜</span>
+          {% elif my_color == 'black' %}
+            <span title="You played Black">⬛</span>
+          {% else %}
+            <span style="color:#484f58;">—</span>
+          {% endif %}
+        </td>
+        <td style="padding:11px 16px; white-space:nowrap;">
+          {% set tc = classify_time_control(g.time_control) %}
+          <span style="font-size:11px; font-weight:600; color:{{ tc.color }};">{{ tc.label }}</span>
+          {% if tc.detail %}<span style="font-size:11px; color:#6e7681; margin-left:3px;">{{ tc.detail }}</span>{% endif %}
+        </td>
+        <td style="padding:11px 16px;">
+          {% if player_name and my_color %}
+            <span style="font-weight:700; color:{% if won %}#56d364{% elif lost %}#f85149{% else %}#8b949e{% endif %};">
+              {% if won %}Win{% elif lost %}Loss{% else %}Draw{% endif %}
+            </span>
+          {% else %}
+            <span style="font-weight:700; color:
+              {%- if g.result == '1-0' %}#56d364
+              {%- elif g.result == '0-1' %}#f85149
+              {%- else %}#8b949e{% endif %};">{{ g.result }}</span>
+          {% endif %}
+          {{ termination_badge(g.termination, g.result, g.white, g.black) }}
+        </td>
+        <td style="padding:11px 16px; color:#8b949e; font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+          {{ g.opening or g.eco or "—" }}
+        </td>
+        <td style="padding:11px 16px; font-size:13px;">
+          {% if g.analyzed %}
+            {% if my_acc is not none %}
+              <span style="font-weight:600; color:#e6edf3;">{{ my_acc }}%</span>
+            {% else %}
+              <span style="color:#484f58;">—</span>
+            {% endif %}
+          {% else %}
+            <span style="color:#484f58; font-size:12px;">—</span>
+          {% endif %}
+        </td>
+        <td style="padding:11px 16px; color:#8b949e; font-size:13px;">{{ g.date or "—" }}</td>
+        <td style="padding:11px 16px; text-align:right;">
+          <a href="/game/{{ g.id }}" class="btn btn-secondary btn-sm">Review</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div style="display:flex; justify-content:center; align-items:center; gap:6px; margin-top:20px;">
+  {% if page > 1 %}
+  <a href="{{ url_for('index', q=q, result=result_filter, color=color_filter, analyzed=analyzed_filter, sort=sort_by, dir=sort_dir, page=page-1) }}"
+     class="btn btn-secondary btn-sm">← Prev</a>
+  {% endif %}
+  <span style="font-size:13px; color:#8b949e;">Page {{ page }} of {{ total_pages }}</span>
+  {% if page < total_pages %}
+  <a href="{{ url_for('index', q=q, result=result_filter, color=color_filter, analyzed=analyzed_filter, sort=sort_by, dir=sort_dir, page=page+1) }}"
+     class="btn btn-secondary btn-sm">Next →</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Sync modal -->
+<div id="sync-modal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
+            z-index:100; align-items:center; justify-content:center;">
+  <div class="card" style="width:420px; max-width:92vw;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h2 style="font-size:17px; font-weight:700;">Sync from Chess.com</h2>
+      <button onclick="closeSyncModal()"
+              style="background:none; border:none; color:#8b949e; font-size:20px; cursor:pointer; line-height:1;">✕</button>
+    </div>
+
+    <div id="sync-idle">
+      <p style="font-size:13px; color:#8b949e; margin-bottom:16px;">
+        Fetch your latest games from
+        <strong style="color:#e6edf3;">chess.com/{{ player_name }}</strong>
+        and import any that aren't already here.
+      </p>
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:13px; color:#8b949e; margin-bottom:6px;">How far back?</label>
+        <select id="sync-months"
+                style="width:100%; padding:8px 10px; background:#0d1117; border:1px solid #30363d;
+                       border-radius:6px; color:#e6edf3; font-size:14px;">
+          <option value="1">This month</option>
+          <option value="2">Last 2 months</option>
+          <option value="3">Last 3 months</option>
+          <option value="6">Last 6 months</option>
+          <option value="12">Last 12 months</option>
+        </select>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="closeSyncModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="runSync()">Sync Now</button>
+      </div>
+    </div>
+
+    <div id="sync-busy" style="display:none; text-align:center; padding:16px 0;">
+      <div style="display:flex; align-items:center; justify-content:center; gap:10px;
+                  color:#8b949e; font-size:14px; margin-bottom:8px;">
+        <div style="width:18px; height:18px; border:2px solid #30363d; border-top-color:#58a6ff;
+                    border-radius:50%; animation:spin .7s linear infinite;"></div>
+        Fetching games from Chess.com…
+      </div>
+    </div>
+
+    <div id="sync-result" style="display:none;">
+      <div id="sync-result-body" style="margin-bottom:20px;"></div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="closeSyncModal(); window.location.reload();">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+
+<script>
+function openSyncModal()  { document.getElementById('sync-modal').style.display = 'flex'; }
+function closeSyncModal() { document.getElementById('sync-modal').style.display = 'none'; }
+
+function runSync() {
+  document.getElementById('sync-idle').style.display = 'none';
+  document.getElementById('sync-busy').style.display = 'block';
+  document.getElementById('sync-result').style.display = 'none';
+
+  const months = document.getElementById('sync-months').value;
+  const body = new FormData();
+  body.append('months', months);
+
+  fetch('/sync', { method: 'POST', body })
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('sync-busy').style.display = 'none';
+      document.getElementById('sync-result').style.display = 'block';
+      const el = document.getElementById('sync-result-body');
+      if (d.error) {
+        el.innerHTML = `<div style="color:#f85149; font-size:14px;">⚠ ${d.error}</div>`;
+      } else {
+        el.innerHTML = `
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; text-align:center;">
+            <div style="background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:14px;">
+              <div style="font-size:26px; font-weight:700; color:#56d364;">${d.imported}</div>
+              <div style="font-size:12px; color:#8b949e; margin-top:3px;">New games</div>
+            </div>
+            <div style="background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:14px;">
+              <div style="font-size:26px; font-weight:700; color:#8b949e;">${d.skipped}</div>
+              <div style="font-size:12px; color:#8b949e; margin-top:3px;">Already here</div>
+            </div>
+            <div style="background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:14px;">
+              <div style="font-size:26px; font-weight:700;
+                          color:${d.errors > 0 ? '#f85149' : '#484f58'};">${d.errors}</div>
+              <div style="font-size:12px; color:#8b949e; margin-top:3px;">Errors</div>
+            </div>
+          </div>
+          ${d.imported > 0
+            ? '<p style="font-size:13px; color:#8b949e; margin-top:12px; text-align:center;">Click Done to see your new games.</p>'
+            : ''}`;
+      }
+    })
+    .catch(e => {
+      document.getElementById('sync-busy').style.display = 'none';
+      document.getElementById('sync-result').style.display = 'block';
+      document.getElementById('sync-result-body').innerHTML =
+        `<div style="color:#f85149; font-size:14px;">⚠ Network error: ${e.message}</div>`;
+    });
+}
+</script>
+
+<!-- Import modal -->
+<div id="import-modal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
+            z-index:100; align-items:center; justify-content:center;">
+  <div class="card" style="width:560px; max-width:92vw;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h2 style="font-size:17px; font-weight:700;">Import PGN</h2>
+      <button onclick="document.getElementById('import-modal').style.display='none'"
+              style="background:none; border:none; color:#8b949e; font-size:20px; cursor:pointer; line-height:1;">✕</button>
+    </div>
+    <form method="POST" action="/import" enctype="multipart/form-data">
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:13px; color:#8b949e; margin-bottom:6px;">Upload .pgn file</label>
+        <input type="file" name="pgn_file" accept=".pgn,.txt"
+               style="width:100%; padding:8px; background:#0d1117; border:1px solid #30363d;
+                      border-radius:6px; color:#e6edf3; font-size:13px;">
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:13px; color:#8b949e; margin-bottom:6px;">Or paste PGN text</label>
+        <textarea name="pgn_text" rows="8"
+                  style="width:100%; padding:8px; background:#0d1117; border:1px solid #30363d;
+                         border-radius:6px; color:#e6edf3; font-size:12px; font-family:monospace;
+                         resize:vertical;"
+                  placeholder='[Event "Casual Game"]&#10;[White "You"]&#10;[Black "Opponent"]&#10;&#10;1. e4 e5 ...'></textarea>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="btn btn-secondary"
+                onclick="document.getElementById('import-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Database & user data
+chess.db
+games/*
+!games/.gitkeep
+
+# IDE / OS
+.env
+*.swp
+.DS_Store

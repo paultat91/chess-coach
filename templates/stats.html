@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Stats — Chess Coach{% endblock %}
+
+{% block content %}
+<h1 style="font-size:22px; font-weight:700; margin-bottom:24px;">Statistics</h1>
+
+<!-- Summary cards -->
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:32px;">
+  <div class="card" style="text-align:center; padding:20px;">
+    <div style="font-size:36px; font-weight:700; color:#58a6ff;">{{ stats.total_games }}</div>
+    <div style="font-size:13px; color:#8b949e; margin-top:4px;">Games Imported</div>
+  </div>
+  <div class="card" style="text-align:center; padding:20px;">
+    <div style="font-size:36px; font-weight:700; color:#56d364;">{{ stats.analyzed_games }}</div>
+    <div style="font-size:13px; color:#8b949e; margin-top:4px;">Analyzed</div>
+  </div>
+  <div class="card" style="text-align:center; padding:20px;">
+    <div style="font-size:36px; font-weight:700; color:#d4a017;">
+      {% if stats.avg_acc %}{{ stats.avg_acc }}%{% else %}—{% endif %}
+    </div>
+    <div style="font-size:13px; color:#8b949e; margin-top:4px;">
+      {% if player_name %}My Avg Accuracy{% else %}Avg Accuracy{% endif %}
+    </div>
+  </div>
+  {% if stats.record and player_name %}
+  <div class="card" style="padding:20px;">
+    <div style="font-size:12px; color:#8b949e; margin-bottom:8px; text-align:center;">Win / Draw / Loss</div>
+    <div style="display:flex; justify-content:center; align-items:center; gap:8px;">
+      <span style="font-size:22px; font-weight:700; color:#56d364;">{{ stats.record.wins }}</span>
+      <span style="color:#484f58;">/</span>
+      <span style="font-size:22px; font-weight:700; color:#8b949e;">{{ stats.record.draws }}</span>
+      <span style="color:#484f58;">/</span>
+      <span style="font-size:22px; font-weight:700; color:#f85149;">{{ stats.record.losses }}</span>
+    </div>
+    {% if stats.record.played > 0 %}
+    {% set wr = (stats.record.wins / stats.record.played * 100) | round(0) | int %}
+    <div style="margin-top:8px;">
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:#6e7681; margin-bottom:3px;">
+        <span>Win rate</span><span>{{ wr }}%</span>
+      </div>
+      <div style="height:5px; background:#21262d; border-radius:3px; overflow:hidden;">
+        <div style="width:{{ wr }}%; height:100%; background:#56d364; border-radius:3px;"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center; padding:20px;">
+    <div style="font-size:36px; font-weight:700; color:#f85149;">{{ stats.total_blunders }}</div>
+    <div style="font-size:13px; color:#8b949e; margin-top:4px;">Total Blunders</div>
+  </div>
+  {% endif %}
+</div>
+
+{% if stats.opening_stats %}
+<!-- Opening table -->
+<div class="card" style="margin-bottom:24px;">
+  <h2 style="font-size:15px; font-weight:700; margin-bottom:16px;">Opening Performance</h2>
+  <table style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr style="border-bottom:1px solid #30363d;">
+        <th style="text-align:left;   padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Opening</th>
+        <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Games</th>
+        <th style="text-align:center; padding:8px 12px; font-size:11px; color:#56d364; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Wins</th>
+        <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Draws</th>
+        <th style="text-align:center; padding:8px 12px; font-size:11px; color:#f85149; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Losses</th>
+        <th style="text-align:left;   padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Win Rate</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in stats.opening_stats %}
+      {% set wr = (row.wins / row.count * 100) | round(0) | int %}
+      <tr style="border-bottom:1px solid #21262d;"
+          onmouseover="this.style.background='#1c2128'"
+          onmouseout="this.style.background=''">
+        <td style="padding:10px 12px; font-size:14px;">{{ row.opening }}</td>
+        <td style="padding:10px 12px; text-align:center; color:#8b949e;">{{ row.count }}</td>
+        <td style="padding:10px 12px; text-align:center; color:#56d364; font-weight:600;">{{ row.wins }}</td>
+        <td style="padding:10px 12px; text-align:center; color:#8b949e;">{{ row.draws }}</td>
+        <td style="padding:10px 12px; text-align:center; color:#f85149;">{{ row.losses }}</td>
+        <td style="padding:10px 12px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:80px; height:5px; background:#21262d; border-radius:3px; overflow:hidden;">
+              <div style="width:{{ wr }}%; height:100%; background:#56d364; border-radius:3px;"></div>
+            </div>
+            <span style="font-size:13px; color:#8b949e; min-width:34px;">{{ wr }}%</span>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if stats.recent_accuracy %}
+<!-- Recent games accuracy -->
+<div class="card">
+  <h2 style="font-size:15px; font-weight:700; margin-bottom:16px;">Recent Games</h2>
+  <table style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr style="border-bottom:1px solid #30363d;">
+        <th style="text-align:left;   padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">
+          {% if player_name %}Opponent{% else %}Game{% endif %}
+        </th>
+        <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Color</th>
+        <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Result</th>
+        <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">
+          {% if player_name %}My Accuracy{% else %}Accuracy{% endif %}
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in stats.recent_accuracy %}
+      {% set my_color = row.my_color %}
+      {% if player_name %}
+        {% set won  = (my_color == 'white' and row.result == '1-0') or (my_color == 'black' and row.result == '0-1') %}
+        {% set lost = (my_color == 'white' and row.result == '0-1') or (my_color == 'black' and row.result == '1-0') %}
+        {% set opponent = row.black if my_color == 'white' else row.white %}
+      {% else %}
+        {% set won  = row.result == '1-0' %}
+        {% set lost = row.result == '0-1' %}
+        {% set opponent = row.white ~ ' vs ' ~ row.black %}
+      {% endif %}
+      <tr style="border-bottom:1px solid #21262d;"
+          onmouseover="this.style.background='#1c2128'"
+          onmouseout="this.style.background=''">
+        <td style="padding:10px 12px; font-size:13px;">
+          <a href="/game/{{ row.id }}" style="color:#58a6ff; text-decoration:none;">{{ opponent }}</a>
+        </td>
+        <td style="padding:10px 12px; text-align:center; font-size:14px;">
+          {% if my_color == 'white' %}⬜{% elif my_color == 'black' %}⬛{% else %}—{% endif %}
+        </td>
+        <td style="padding:10px 12px; text-align:center; font-weight:700;
+                   color:{% if won %}#56d364{% elif lost %}#f85149{% else %}#8b949e{% endif %};">
+          {% if player_name %}
+            {% if won %}Win{% elif lost %}Loss{% else %}Draw{% endif %}
+          {% else %}
+            {{ row.result }}
+          {% endif %}
+        </td>
+        <td style="padding:10px 12px; text-align:center; font-weight:600; color:#e6edf3;">
+          {% if row.my_accuracy is not none %}{{ row.my_accuracy }}%{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:48px 24px; color:#6e7681;">
+  No analyzed games yet. Analyse some games to see stats here.
+</div>
+{% endif %}
+
+{% endblock %}

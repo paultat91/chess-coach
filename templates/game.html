@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+{% block title %}{{ game.white }} vs {{ game.black }} — Chess Coach{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+<style>
+  /* Eval bar */
+  .eval-bar-wrap  { width: 18px; height: 400px; position: relative; border-radius: 4px; overflow: hidden; border: 1px solid #30363d; background: #1a1a2e; flex-shrink: 0; }
+  .eval-bar-white { position: absolute; bottom: 0; left: 0; right: 0; background: #e8e8e8; transition: height .35s ease; }
+  .eval-label     { font-size: 11px; color: #8b949e; text-align: center; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+  /* Move list */
+  .move-list       { height: 400px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #30363d transparent; }
+  .move-row        { display: flex; align-items: center; gap: 2px; padding: 1px 8px; }
+  .move-num        { color: #6e7681; font-size: 12px; width: 30px; text-align: right; flex-shrink: 0; }
+  .move-btn        { background: none; border: none; color: #c9d1d9; cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 14px; font-family: inherit; min-width: 72px; text-align: left; display: flex; align-items: center; gap: 5px; transition: background .1s; flex-wrap: wrap; }
+  .move-clk        { font-size: 10px; color: #484f58; font-variant-numeric: tabular-nums; margin-left: auto; padding-left: 4px; }
+  .move-btn:hover  { background: #21262d; }
+  .move-btn.active { background: #0f3460 !important; color: #fff; }
+
+  /* Classification dots */
+  .cls-dot         { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .cls-best        { background: #56d364; }
+  .cls-good        { background: #a8d050; }
+  .cls-inaccuracy  { background: #d4a017; }
+  .cls-mistake     { background: #e07b39; }
+  .cls-blunder     { background: #f85149; }
+
+  /* Move detail */
+  .move-detail { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; margin-top: 12px; font-size: 13px; min-height: 58px; display: flex; align-items: center; }
+
+  /* Accuracy bar */
+  .acc-bar  { height: 5px; background: #21262d; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .acc-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #f85149 0%, #d4a017 40%, #56d364 80%); }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width: 20px; height: 20px; border: 2px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: spin .7s linear infinite; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="display:flex; align-items:flex-start; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
+  <a href="/" class="btn btn-secondary btn-sm" style="margin-top:2px;">← Back</a>
+  <div style="flex:1; min-width:0;">
+    <h1 style="font-size:20px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+      {{ game.white }} <span style="color:#6e7681; font-weight:400;">vs</span> {{ game.black }}
+    </h1>
+    <div style="font-size:13px; color:#8b949e; margin-top:3px; display:flex; flex-wrap:wrap; align-items:center; gap:6px;">
+      {% if game.event %}<span>{{ game.event }}</span><span style="color:#484f58;">·</span>{% endif %}
+      {% if game.date  %}<span>{{ game.date }}</span><span style="color:#484f58;">·</span>{% endif %}
+      <span style="font-weight:700; color:{%- if game.result == '1-0' %}#56d364{%- elif game.result == '0-1' %}#f85149{%- else %}#8b949e{%- endif %};">{{ game.result }}</span>
+      {{ termination_badge(game.termination, game.result, game.white, game.black, large=true) }}
+      <span style="color:#484f58;">·</span>
+      <span style="background:#21262d; border:1px solid #30363d; border-radius:10px; padding:1px 10px; font-size:12px; color:#c9d1d9;">
+        ♟ {{ game.opening or (game.eco ~ " opening" if game.eco else "Opening unknown") }}
+      </span>
+    </div>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+    {% if not game.analyzed %}
+    <button id="analyse-btn" class="btn btn-primary" onclick="startAnalysis({{ game.id }})">
+      Analyse Game
+    </button>
+    {% endif %}
+    <form method="POST" action="/game/{{ game.id }}/delete"
+          onsubmit="return confirm('Delete this game?')">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
+  </div>
+</div>
+
+{% if not game.analyzed %}
+<!-- Not-yet-analyzed state -->
+<div class="card" style="text-align:center; padding:56px 24px;" id="no-analysis-card">
+  <div id="idle-content">
+    <div style="font-size:44px; margin-bottom:14px;">🔍</div>
+    <h2 style="font-size:17px; margin-bottom:8px; color:#8b949e;">Not yet analyzed</h2>
+    <p style="color:#6e7681; margin-bottom:24px; max-width:380px; margin-inline:auto;">
+      Click <strong>Analyse Game</strong> above to run Stockfish on every move.
+      A typical game takes 30–60 seconds.
+    </p>
+  </div>
+  <div id="analyzing-content" style="display:none;">
+    <div style="display:flex; align-items:center; justify-content:center; gap:12px; color:#8b949e; font-size:14px;">
+      <div class="spinner"></div>
+      Analyzing — this may take a minute…
+    </div>
+  </div>
+</div>
+
+{% else %}
+{% if player_name %}
+  {% set p = player_name | lower %}
+  {% set my_side = 'white' if game.white | lower == p else ('black' if game.black | lower == p else None) %}
+{% else %}
+  {% set my_side = None %}
+{% endif %}
+
+<!-- Accuracy summary cards -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px;">
+  {% for side, label, acc, blunders, mistakes, inaccuracies in [
+      ('white', game.white, stats.white_accuracy, stats.white_blunders, stats.white_mistakes, stats.white_inaccuracies),
+      ('black', game.black, stats.black_accuracy, stats.black_blunders, stats.black_mistakes, stats.black_inaccuracies)
+  ] %}
+  {% set is_me = (my_side == side) %}
+  <div class="card" style="padding:16px; {% if is_me %}border-color:#238636;{% endif %}">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+      <div>
+        <div style="font-size:12px; color:#8b949e; margin-bottom:2px;">
+          {% if side == 'white' %}⬜{% else %}⬛{% endif %}
+          {{ label }}
+          {% if is_me %}<span style="background:#1a3828; color:#56d364; border:1px solid #238636; border-radius:8px; padding:1px 7px; font-size:10px; font-weight:700; margin-left:4px;">YOU</span>{% endif %}
+        </div>
+        <div style="font-size:30px; font-weight:700; line-height:1; color:{% if is_me %}#e6edf3{% else %}#8b949e{% endif %};">{{ acc }}%</div>
+        <div style="font-size:11px; color:#8b949e; margin-top:2px;">accuracy</div>
+      </div>
+      <div style="font-size:12px; color:#8b949e; text-align:right; line-height:1.9;">
+        <div><span style="color:#f85149;">●</span> {{ blunders }} blunder{{ "s" if blunders != 1 }}</div>
+        <div><span style="color:#e07b39;">●</span> {{ mistakes }} mistake{{ "s" if mistakes != 1 }}</div>
+        <div><span style="color:#d4a017;">●</span> {{ inaccuracies }} inaccurac{{ "ies" if inaccuracies != 1 else "y" }}</div>
+      </div>
+    </div>
+    <div class="acc-bar"><div class="acc-fill" style="width:{{ acc }}%"></div></div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Board + move list -->
+<div style="display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;">
+
+  <!-- Left: eval bar + board + nav + detail -->
+  <div style="flex-shrink:0;">
+    <div style="display:flex; gap:10px; align-items:flex-start;">
+      <!-- Eval bar -->
+      <div>
+        <div class="eval-bar-wrap" id="eval-bar-wrap">
+          <div class="eval-bar-white" id="eval-bar-fill" style="height:50%"></div>
+        </div>
+        <div class="eval-label" id="eval-label">0.00</div>
+      </div>
+
+      <!-- Board — top = opponent, bottom = you -->
+      {% if my_side == 'black' %}
+        {% set top_name    = game.white %}
+        {% set bottom_name = game.black %}
+      {% else %}
+        {% set top_name    = game.black %}
+        {% set bottom_name = game.white %}
+      {% endif %}
+      <div>
+        <div id="label-top" style="font-size:12px; color:#6e7681; margin-bottom:4px; padding-left:2px;">
+          {{ top_name }}
+        </div>
+        <div style="position:relative; display:inline-block; line-height:0;">
+          <div id="board" style="width:400px;"></div>
+          <svg id="board-overlay"
+               style="position:absolute; top:0; left:0; width:400px; height:400px;
+                      pointer-events:none; z-index:10;"></svg>
+        </div>
+        <div id="label-bottom" style="font-size:12px; color:#6e7681; margin-top:4px; padding-left:2px;">
+          {{ bottom_name }}{% if my_side %} <span style="color:#56d364; font-weight:700;">← You</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div style="display:flex; align-items:center; gap:6px; margin-top:12px; padding-left:28px;">
+      <button class="btn btn-secondary btn-sm" onclick="goToMove(0)" title="Start">⏮</button>
+      <button class="btn btn-secondary btn-sm" onclick="prevMove()" title="← Prev">◀</button>
+      <span id="move-counter"
+            style="font-size:13px; color:#8b949e; min-width:110px; text-align:center;
+                   font-variant-numeric:tabular-nums;">Start</span>
+      <button class="btn btn-secondary btn-sm" onclick="nextMove()" title="Next →">▶</button>
+      <button class="btn btn-secondary btn-sm" onclick="goToMove(positions.length - 1)" title="End">⏭</button>
+      <button class="btn btn-secondary btn-sm" onclick="flipBoard()" title="Flip board" style="margin-left:6px;">⇅ Flip</button>
+    </div>
+
+    <!-- Overlay toggles -->
+    <div style="display:flex; align-items:center; gap:6px; margin-top:10px; padding-left:28px; flex-wrap:wrap;">
+      <button id="toggle-last"  onclick="toggleOverlay('last')"
+              class="btn btn-secondary btn-sm" style="border-color:#b5a800;">
+        ▶ Last move
+      </button>
+      <button id="toggle-best"  onclick="toggleOverlay('best')"
+              class="btn btn-secondary btn-sm" style="border-color:#2da44e;">
+        ↗ Best move
+      </button>
+      <div style="display:flex; align-items:center; gap:6px; background:#0d1117;
+                  border:1px solid #30363d; border-radius:6px; padding:4px 10px;">
+        <span style="font-size:12px; color:#e8862a; white-space:nowrap;">PV:</span>
+        <input type="range" id="pv-slider" min="0" max="8" value="0"
+               style="width:80px; accent-color:#e8862a; cursor:pointer;"
+               oninput="setPV(+this.value)">
+        <span id="pv-label" style="font-size:12px; color:#8b949e; min-width:28px;">off</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; background:#0d1117;
+                  border:1px solid #30363d; border-radius:6px; padding:4px 10px;">
+        <span style="font-size:12px; color:#58a6ff; white-space:nowrap;">Ahead:</span>
+        <input type="range" id="ahead-slider" min="0" max="8" value="0"
+               style="width:80px; accent-color:#58a6ff; cursor:pointer;"
+               oninput="setAhead(+this.value)">
+        <span id="ahead-label" style="font-size:12px; color:#8b949e; min-width:28px;">off</span>
+      </div>
+    </div>
+
+    <!-- Move detail -->
+    <div class="move-detail" id="move-detail" style="width:432px; margin-top:10px;">
+      <span style="color:#484f58;">Navigate moves to see analysis</span>
+    </div>
+  </div>
+
+  <!-- Right: move list -->
+  <div class="card" style="flex:1; min-width:220px; padding:0; overflow:hidden;">
+    <div style="padding:10px 16px; border-bottom:1px solid #30363d; font-size:11px;
+                font-weight:600; color:#8b949e; text-transform:uppercase; letter-spacing:.5px;">
+      Moves
+    </div>
+    <div class="move-list" id="move-list">
+      {% for move in moves %}
+      {% set idx = loop.index0 %}
+      {% if move.color == 'white' %}
+      <div class="move-row">
+        <span class="move-num">{{ move.move_number }}.</span>
+      {% endif %}
+        <button class="move-btn" id="move-btn-{{ idx }}"
+                onclick="goToMove({{ idx + 1 }})">
+          <span class="cls-dot cls-{{ move.classification }}"></span>
+          {{ move.san }}
+          {% if move.clock %}<span class="move-clk">{{ move.clock }}</span>{% endif %}
+        </button>
+      {% if move.color == 'black' or loop.last %}
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- JS deps -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+<script>
+const moves     = {{ moves_json | safe }};
+const positions = {{ positions_json | safe }};
+let currentIdx  = 0;
+
+const myName   = {{ (bottom_name) | tojson }};
+const orientation = '{{ my_side if my_side else "white" }}';
+
+const board = Chessboard('board', {
+  position:    positions[0],
+  pieceTheme:  'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+  orientation: orientation,
+});
+
+// ---------- Eval bar ----------
+function evalToPercent(cp) {
+  if (cp == null) return 50;
+  const clamped = Math.max(-1000, Math.min(1000, cp));
+  return 50 + (clamped / 1000) * 45;
+}
+
+function formatEval(cp) {
+  if (cp == null) return '—';
+  if (cp >=  9000) return '+M' + (10000 - cp);
+  if (cp <= -9000) return '-M' + (10000 + cp);
+  const p = cp / 100;
+  return (p >= 0 ? '+' : '') + p.toFixed(2);
+}
+
+function updateEvalBar(cp) {
+  document.getElementById('eval-bar-fill').style.height = evalToPercent(cp) + '%';
+  document.getElementById('eval-label').textContent = formatEval(cp);
+}
+
+// ---------- Move detail ----------
+const CLS_COLOR = {
+  best: '#56d364', good: '#a8d050',
+  inaccuracy: '#d4a017', mistake: '#e07b39', blunder: '#f85149'
+};
+const CLS_LABEL = {
+  best: 'Best', good: 'Good',
+  inaccuracy: 'Inaccuracy', mistake: 'Mistake', blunder: 'Blunder'
+};
+
+function updateMoveDetail(idx) {
+  const el = document.getElementById('move-detail');
+  if (idx === 0) {
+    el.innerHTML = '<span style="color:#484f58;">Navigate moves to see analysis</span>';
+    return;
+  }
+  const m   = moves[idx - 1];
+  const col = CLS_COLOR[m.classification] || '#8b949e';
+  const lbl = CLS_LABEL[m.classification] || m.classification;
+
+  const bestHtml = (m.classification !== 'best' && m.best_move_san)
+    ? `<span style="color:#8b949e; margin-left:10px;">Best: <strong style="color:#56d364;">${m.best_move_san}</strong></span>`
+    : '';
+
+  const lossHtml = (!m.is_forced && m.cp_loss > 0)
+    ? `<span style="color:#6e7681; margin-left:10px;">−${(m.cp_loss / 100).toFixed(2)} pawns</span>`
+    : '';
+
+  const clockHtml = m.clock
+    ? `<span style="color:#6e7681; font-size:12px; margin-left:10px;">🕐 ${m.clock}</span>`
+    : '';
+
+  el.innerHTML = `
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <strong style="font-size:16px;">${m.san}</strong>
+      <span class="badge badge-${m.classification}">${lbl}</span>
+      <span style="color:#8b949e;">${formatEval(m.eval_after)}</span>
+      ${lossHtml}
+      ${bestHtml}
+      ${clockHtml}
+      ${m.is_forced ? '<span style="color:#6e7681; font-size:12px;">(forced)</span>' : ''}
+    </div>`;
+}
+
+// ---------- Navigation ----------
+function updateMoveCounter(idx) {
+  const el = document.getElementById('move-counter');
+  if (idx === 0) { el.textContent = 'Start'; return; }
+  const m = moves[idx - 1];
+  el.textContent = `${m.move_number}${m.color === 'white' ? '.' : '...'} ${m.san}`;
+}
+
+function highlightMove(idx) {
+  document.querySelectorAll('.move-btn').forEach(b => b.classList.remove('active'));
+  if (idx > 0) {
+    const btn = document.getElementById('move-btn-' + (idx - 1));
+    if (btn) { btn.classList.add('active'); btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  }
+}
+
+function goToMove(idx) {
+  idx = Math.max(0, Math.min(positions.length - 1, idx));
+  currentIdx = idx;
+  board.position(positions[idx], false);
+  const cp = idx === 0 ? 0 : moves[idx - 1].eval_after;
+  updateEvalBar(cp);
+  updateMoveDetail(idx);
+  updateMoveCounter(idx);
+  highlightMove(idx);
+  redrawOverlay();
+}
+
+function nextMove() { goToMove(currentIdx + 1); }
+function prevMove() { goToMove(currentIdx - 1); }
+
+let currentOrientation = orientation;
+
+function flipBoard() {
+  board.flip();
+  currentOrientation = currentOrientation === 'white' ? 'black' : 'white';
+  const top    = document.getElementById('label-top');
+  const bottom = document.getElementById('label-bottom');
+  const topText    = top.innerText.trim();
+  const bottomText = bottom.innerText.replace('← You', '').trim();
+  top.innerText    = bottomText;
+  bottom.innerHTML = topText + (myName ? ' <span style="color:#56d364; font-weight:700;">← You</span>' : '');
+  redrawOverlay();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') nextMove();
+  if (e.key === 'ArrowLeft')  prevMove();
+});
+
+// ============================================================
+// Board overlay — last move · best move (engine) · PV · next moves played
+// ============================================================
+const SQ = 400 / 8;   // 50 px per square
+
+let showLastMove = true;
+let showBestMove = true;
+let showPV       = 0;
+let showAhead    = 0;
+
+// PV fetch state — cache keyed by FEN only; always fetches MAX_PV moves
+const MAX_PV     = 8;
+const pvCache    = {};   // fen → Move[]
+let   pvReqId    = 0;
+let   pvDebounce = null;
+
+// Map UCI square name → pixel centre, accounting for board flip
+function sqCenter(name) {
+  const col = name.charCodeAt(0) - 97;       // a=0 … h=7
+  const row = parseInt(name[1], 10) - 1;     // 1=0 … 8=7
+  return currentOrientation === 'white'
+    ? { x: col * SQ + SQ / 2,       y: (7 - row) * SQ + SQ / 2 }
+    : { x: (7 - col) * SQ + SQ / 2, y: row * SQ + SQ / 2 };
+}
+
+function sqCorner(name) {
+  const c = sqCenter(name);
+  return { x: c.x - SQ / 2, y: c.y - SQ / 2 };
+}
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function addHighlight(svg, sq, color, opacity) {
+  const { x, y } = sqCorner(sq);
+  svg.appendChild(svgEl('rect', { x, y, width: SQ, height: SQ,
+                                   fill: color, 'fill-opacity': opacity }));
+}
+
+// Track arrows already drawn this frame so we can offset duplicates
+let _arrowSlots = {};   // "e2e4" -> next slot index
+
+function _arrowOffset(from, to) {
+  const key = from + to;
+  const slot = _arrowSlots[key] || 0;
+  _arrowSlots[key] = slot + 1;
+  // Alternate: slot 0 → 0px, slot 1 → +7px, slot 2 → −7px, …
+  if (slot === 0) return 0;
+  return slot % 2 === 1 ? slot * 7 : -(slot * 7);
+}
+
+function addArrow(svg, from, to, color, opacity) {
+  const f = sqCenter(from), t = sqCenter(to);
+  const dx = t.x - f.x, dy = t.y - f.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1) return;
+  const ux = dx / len, uy = dy / len;
+  const px = -uy, py = ux;   // perpendicular unit vector
+
+  const headLen = 15, headW = 9, bodyW = 5, startOff = SQ * 0.22;
+  const lat = _arrowOffset(from, to);   // lateral offset in px
+
+  const x1 = f.x + ux * startOff + px * lat, y1 = f.y + uy * startOff + py * lat;
+  const ex  = t.x - ux * headLen  + px * lat, ey  = t.y - uy * headLen  + py * lat;
+  const tx  = t.x + px * lat,                 ty  = t.y + py * lat;
+
+  svg.appendChild(svgEl('line', {
+    x1, y1, x2: ex, y2: ey,
+    stroke: color, 'stroke-width': bodyW, 'stroke-opacity': opacity,
+    'stroke-linecap': 'round'
+  }));
+
+  const pts = [
+    `${tx},${ty}`,
+    `${ex + px * headW},${ey + py * headW}`,
+    `${ex - px * headW},${ey - py * headW}`
+  ].join(' ');
+  svg.appendChild(svgEl('polygon', { points: pts, fill: color, 'fill-opacity': opacity }));
+}
+
+function redrawOverlay() {
+  const svg = document.getElementById('board-overlay');
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  _arrowSlots = {};   // reset offset tracking each frame
+
+  // 1 — Last move: yellow square highlights
+  if (showLastMove && currentIdx > 0) {
+    const uci = moves[currentIdx - 1].uci;
+    addHighlight(svg, uci.slice(0, 2), '#cdd16e', 0.48);
+    addHighlight(svg, uci.slice(2, 4), '#cdd16e', 0.48);
+  }
+
+  // 2 — Engine best move: green arrow — skipped when PV is active because
+  //     PV move 0 IS the best move and would overlap exactly.
+  if (showBestMove && showPV === 0 && currentIdx < moves.length) {
+    const bm = moves[currentIdx].best_move_uci;
+    if (bm) addArrow(svg, bm.slice(0, 2), bm.slice(2, 4), '#2da44e', 0.88);
+  }
+
+  // 3 — Principal variation: orange arrows, fetched from /api/pv
+  //     Cache keyed by FEN only (always fetch MAX_PV moves, slice to showPV).
+  //     Debounced so rapid slider drags fire only one request.
+  if (showPV > 0) {
+    const fen = positions[currentIdx];
+    if (pvCache[fen]) {
+      // Cache hit — draw synchronously right now
+      pvCache[fen].slice(0, showPV).forEach((uci, i) => {
+        const op = Math.max(0.45, 0.92 - i * 0.07);
+        addArrow(svg, uci.slice(0, 2), uci.slice(2, 4), '#e8862a', op);
+      });
+    } else {
+      // Cache miss — debounce so rapid slider drags coalesce into one fetch
+      const myReqId = ++pvReqId;
+      clearTimeout(pvDebounce);
+      pvDebounce = setTimeout(() => {
+        fetch('/api/pv', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ fen, moves: MAX_PV })
+        })
+        .then(r => r.json())
+        .then(d => {
+          pvCache[fen] = d.pv || [];
+          // Full redraw so _arrowSlots are recalculated correctly
+          if (myReqId === pvReqId) redrawOverlay();
+        })
+        .catch(() => {});
+      }, 250);
+    }
+  }
+
+  // 4 — Actually played future moves: blue arrows (from the game itself)
+  if (showAhead > 0) {
+    const limit = Math.min(showAhead, moves.length - currentIdx);
+    for (let i = 0; i < limit; i++) {
+      const uci = moves[currentIdx + i].uci;
+      const op  = Math.max(0.45, 0.92 - i * 0.07);
+      addArrow(svg, uci.slice(0, 2), uci.slice(2, 4), '#58a6ff', op);
+    }
+  }
+}
+
+// Toggle button state helpers
+function toggleOverlay(type) {
+  if (type === 'last') { showLastMove = !showLastMove; syncToggleBtn('toggle-last', showLastMove); }
+  if (type === 'best') { showBestMove = !showBestMove; syncToggleBtn('toggle-best', showBestMove); }
+  redrawOverlay();
+}
+
+function syncToggleBtn(id, active) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.style.opacity    = active ? '1' : '0.4';
+  btn.style.fontWeight = active ? '600' : '400';
+}
+
+function setPV(n) {
+  showPV = n;
+  document.getElementById('pv-label').textContent = n === 0 ? 'off' : n + ' move' + (n > 1 ? 's' : '');
+  redrawOverlay();
+}
+
+function setAhead(n) {
+  showAhead = n;
+  document.getElementById('ahead-label').textContent = n === 0 ? 'off' : n + ' move' + (n > 1 ? 's' : '');
+  redrawOverlay();
+}
+
+// Initialise button states
+syncToggleBtn('toggle-last', showLastMove);
+syncToggleBtn('toggle-best', showBestMove);
+
+// Initialise
+updateEvalBar(0);
+redrawOverlay();
+</script>
+{% endif %}
+
+<!-- Analysis trigger (works whether analyzed or not) -->
+<script>
+function startAnalysis(gameId) {
+  const btn = document.getElementById('analyse-btn');
+  const idle = document.getElementById('idle-content');
+  const busy = document.getElementById('analyzing-content');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing…'; }
+  if (idle) idle.style.display = 'none';
+  if (busy) busy.style.display = 'block';
+
+  fetch(`/game/${gameId}/analyse`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) { window.location.reload(); }
+      else {
+        alert('Analysis failed: ' + d.error);
+        if (btn) { btn.disabled = false; btn.textContent = 'Analyse Game'; }
+        if (idle) idle.style.display = 'block';
+        if (busy) busy.style.display = 'none';
+      }
+    })
+    .catch(e => {
+      alert('Error: ' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = 'Analyse Game'; }
+      if (idle) idle.style.display = 'block';
+      if (busy) busy.style.display = 'none';
+    });
+}
+</script>
+{% endblock %}
