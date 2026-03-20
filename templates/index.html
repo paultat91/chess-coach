@@ -139,7 +139,7 @@
         {% endmacro %}
         {{ sort_th('Opponent', 'opponent') }}
         <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Color</th>
-        <th style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Time</th>
+        <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Time</th>
         <th style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Result</th>
         <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Opening</th>
         {{ sort_th('My Accuracy', 'accuracy') }}
@@ -183,7 +183,7 @@
             <span style="color:#484f58;">—</span>
           {% endif %}
         </td>
-        <td style="padding:11px 16px; white-space:nowrap;">
+        <td class="col-hide-mobile" style="padding:11px 16px; white-space:nowrap;">
           {% set tc = classify_time_control(g.time_control) %}
           <span style="font-size:11px; font-weight:600; color:{{ tc.color }};">{{ tc.label }}</span>
           {% if tc.detail %}<span style="font-size:11px; color:#6e7681; margin-left:3px;">{{ tc.detail }}</span>{% endif %}

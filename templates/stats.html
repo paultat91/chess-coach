@@ -62,9 +62,9 @@
         <th style="text-align:left;   padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Opening</th>
         <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Games</th>
         <th style="text-align:center; padding:8px 12px; font-size:11px; color:#56d364; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Wins</th>
-        <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Draws</th>
+        <th class="col-hide-mobile" style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Draws</th>
         <th style="text-align:center; padding:8px 12px; font-size:11px; color:#f85149; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Losses</th>
-        <th style="text-align:left;   padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Win Rate</th>
+        <th style="text-align:left;   padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Win%</th>
       </tr>
     </thead>
     <tbody>
@@ -76,14 +76,14 @@
         <td style="padding:10px 12px; font-size:14px;">{{ row.opening }}</td>
         <td style="padding:10px 12px; text-align:center; color:#8b949e;">{{ row.count }}</td>
         <td style="padding:10px 12px; text-align:center; color:#56d364; font-weight:600;">{{ row.wins }}</td>
-        <td style="padding:10px 12px; text-align:center; color:#8b949e;">{{ row.draws }}</td>
+        <td class="col-hide-mobile" style="padding:10px 12px; text-align:center; color:#8b949e;">{{ row.draws }}</td>
         <td style="padding:10px 12px; text-align:center; color:#f85149;">{{ row.losses }}</td>
         <td style="padding:10px 12px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:80px; height:5px; background:#21262d; border-radius:3px; overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <div class="col-hide-mobile" style="width:60px; height:5px; background:#21262d; border-radius:3px; overflow:hidden;">
               <div style="width:{{ wr }}%; height:100%; background:#56d364; border-radius:3px;"></div>
             </div>
-            <span style="font-size:13px; color:#8b949e; min-width:34px;">{{ wr }}%</span>
+            <span style="font-size:13px; color:#8b949e;">{{ wr }}%</span>
           </div>
         </td>
       </tr>
@@ -103,7 +103,7 @@
         <th style="text-align:left;   padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">
           {% if player_name %}Opponent{% else %}Game{% endif %}
         </th>
-        <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Color</th>
+        <th class="col-hide-mobile" style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Color</th>
         <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Result</th>
         <th style="text-align:center; padding:8px 12px; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">
           {% if player_name %}My Accuracy{% else %}Accuracy{% endif %}
@@ -128,7 +128,7 @@
         <td style="padding:10px 12px; font-size:13px;">
           <a href="/game/{{ row.id }}" style="color:#58a6ff; text-decoration:none;">{{ opponent }}</a>
         </td>
-        <td style="padding:10px 12px; text-align:center; font-size:14px;">
+        <td class="col-hide-mobile" style="padding:10px 12px; text-align:center; font-size:14px;">
           {% if my_color == 'white' %}⬜{% elif my_color == 'black' %}⬛{% else %}—{% endif %}
         </td>
         <td style="padding:10px 12px; text-align:center; font-weight:700;

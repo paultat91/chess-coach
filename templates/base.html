@@ -166,11 +166,14 @@
       .btn       { padding: 7px 10px; font-size: 13px; }
       .btn-sm    { padding: 4px 7px;  font-size: 11px; }
 
+      /* Cards that contain tables should scroll horizontally, not clip */
+      .card { overflow-x: auto !important; }
+
       /* Tables: shrink font and padding */
       table { font-size: 11px; }
-      table td, table th { padding: 5px 5px; }
+      table td, table th { padding: 5px 6px; }
 
-      /* Hide lower-priority table columns on very narrow screens */
+      /* Hide lower-priority table columns on narrow screens */
       .col-hide-mobile { display: none !important; }
     }
 
