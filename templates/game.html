@@ -253,7 +253,7 @@
       <div style="display:flex; align-items:center; gap:6px; background:#0d1117;
                   border:1px solid #30363d; border-radius:6px; padding:4px 10px;">
         <span style="font-size:12px; color:#58a6ff; white-space:nowrap;">Ahead:</span>
-        <input type="range" id="ahead-slider" min="0" max="8" value="0"
+        <input type="range" id="ahead-slider" min="0" max="8" value="1"
                style="width:80px; accent-color:#58a6ff; cursor:pointer;"
                oninput="setAhead(+this.value)">
         <span id="ahead-label" style="font-size:12px; color:#8b949e; min-width:28px;">off</span>
@@ -494,7 +494,7 @@ const SQ = BOARD_SIZE / 8;
 let showLastMove = true;
 let showBestMove = true;
 let showPV       = 0;
-let showAhead    = 0;
+let showAhead    = 1;
 
 // PV fetch state — cache keyed by FEN only; always fetches MAX_PV moves
 const MAX_PV     = 8;
