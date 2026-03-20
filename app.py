@@ -362,5 +362,67 @@ def stats():
     return render_template("stats.html", stats=data)
 
 
+@app.route("/game/<int:game_id>/export")
+def export_pgn(game_id):
+    """
+    Download the game PGN with Stockfish eval annotations embedded as
+    { [%eval +0.45] } comments after each move (compatible with Lichess/ChessBase).
+    Also appends classification and cp_loss as comments.
+    """
+    game = database.get_game(game_id)
+    if not game:
+        return "Game not found", 404
+
+    import io as _io
+    import chess.pgn as _pgn
+
+    # Parse original PGN
+    pgn_game = _pgn.read_game(_io.StringIO(game["pgn"]))
+    if pgn_game is None:
+        return "Invalid PGN", 500
+
+    moves_data = database.get_moves(game_id) if game["analyzed"] else []
+    moves_by_idx = {m["move_idx"]: m for m in moves_data}
+
+    # Walk the game and inject comments
+    node = pgn_game
+    for idx, child in enumerate(pgn_game.mainline()):
+        m = moves_by_idx.get(idx)
+        if m:
+            parts = []
+            if m["eval_after"] is not None:
+                # Standard Lichess/ChessBase eval comment format
+                cp = m["eval_after"]
+                if cp >= 9000:
+                    eval_str = f"#{ int(10000 - cp) }"
+                elif cp <= -9000:
+                    eval_str = f"#-{ int(10000 + cp) }"
+                else:
+                    eval_str = f"{cp / 100:+.2f}"
+                parts.append(f"[%eval {eval_str}]")
+            if m["classification"] and m["classification"] != "best":
+                parts.append(m["classification"].capitalize())
+                if m["cp_loss"] and m["cp_loss"] > 0:
+                    parts.append(f"({m['cp_loss'] / 100:.2f} pawns)")
+                if m["best_move_san"] and m["best_move_uci"] != m["uci"]:
+                    parts.append(f"Best: {m['best_move_san']}")
+            if parts:
+                child.comment = " ".join(parts)
+        node = child
+
+    exporter = _pgn.StringExporter(headers=True, variations=True, comments=True)
+    annotated = pgn_game.accept(exporter)
+
+    filename = f"{game['white']}_vs_{game['black']}_{game['date'] or 'unknown'}.pgn"
+    filename = "".join(c if c.isalnum() or c in "._- " else "_" for c in filename)
+
+    from flask import Response
+    return Response(
+        annotated,
+        mimetype="application/x-chess-pgn",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

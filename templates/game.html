@@ -79,6 +79,14 @@
 <!-- Header -->
 <div style="display:flex; align-items:flex-start; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
   <a href="/" class="btn btn-secondary btn-sm" style="margin-top:2px;">← Back</a>
+  {% if game.analyzed %}
+  <a href="/game/{{ game.id }}/export"
+     class="btn btn-secondary btn-sm"
+     style="margin-top:2px; border-color:#30363d;"
+     title="Download annotated PGN with Stockfish eval comments">
+    ⬇ Export PGN
+  </a>
+  {% endif %}
   <div style="flex:1; min-width:0;">
     <h1 style="font-size:20px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
       {{ game.white }} <span style="color:#6e7681; font-weight:400;">vs</span> {{ game.black }}
