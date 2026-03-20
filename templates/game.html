@@ -6,7 +6,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
 <style>
   /* Eval bar */
-  .eval-bar-wrap  { width: 18px; height: 400px; position: relative; border-radius: 4px; overflow: hidden; border: 1px solid #30363d; background: #1a1a2e; flex-shrink: 0; }
+  .eval-bar-wrap  { width: 18px; height: 400px; position: relative; border-radius: 4px; overflow: hidden; border: 1px solid #30363d; background: #1a1a2e; flex-shrink: 0; max-height: 100vw; }
   .eval-bar-white { position: absolute; bottom: 0; left: 0; right: 0; background: #e8e8e8; transition: height .35s ease; }
   .eval-label     { font-size: 11px; color: #8b949e; text-align: center; margin-top: 4px; font-variant-numeric: tabular-nums; }
 
@@ -40,12 +40,9 @@
 
   /* ── Mobile ─────────────────────────────────────────────── */
   @media (max-width: 700px) {
-    /* Board: shrink to fit viewport (20px = eval bar + gap + page padding) */
-    #board           { width:  calc(100vw - 68px) !important;
-                       height: calc(100vw - 68px) !important; }
-    #board-overlay   { width:  calc(100vw - 68px) !important;
-                       height: calc(100vw - 68px) !important; }
-    .eval-bar-wrap   { height: calc(100vw - 68px) !important; }
+    /* Board, overlay, and eval bar sizes are now set by JS (BOARD_SIZE).
+       Only override the left-column flex-shrink so it doesn't blow out. */
+    #board-outer > div:first-child { min-width: 0 !important; }
 
     /* Kill hardcoded left-padding on all game sub-rows */
     #nav-row, .overlay-row, #move-detail,
@@ -193,10 +190,9 @@
           {{ top_name }}
         </div>
         <div style="position:relative; display:inline-block; line-height:0;">
-          <div id="board" style="width:400px;"></div>
+          <div id="board"></div>
           <svg id="board-overlay"
-               style="position:absolute; top:0; left:0; width:400px; height:400px;
-                      pointer-events:none; z-index:10;"></svg>
+               style="position:absolute; top:0; left:0; pointer-events:none; z-index:10;"></svg>
         </div>
         <div id="label-bottom" style="font-size:12px; color:#6e7681; margin-top:4px; padding-left:2px;">
           {{ bottom_name }}{% if my_side %} <span style="color:#56d364; font-weight:700;">← You</span>{% endif %}
@@ -287,6 +283,11 @@ let currentIdx  = 0;
 
 const myName   = {{ (bottom_name) | tojson }};
 const orientation = '{{ my_side if my_side else "white" }}';
+
+// Responsive board size: max 400px but never wider than the usable viewport
+// (viewport - eval bar 18px - gaps ~50px - page padding ~20px)
+const BOARD_SIZE = Math.min(400, window.innerWidth - 90);
+document.getElementById('board').style.width = BOARD_SIZE + 'px';
 
 const board = Chessboard('board', {
   position:    positions[0],
@@ -411,11 +412,15 @@ document.addEventListener('keydown', e => {
 // ============================================================
 // Board overlay — last move · best move (engine) · PV · next moves played
 // ============================================================
-// Derive square size from actual rendered board (respects mobile scaling)
-const SQ = (() => {
-  const el = document.getElementById('board');
-  return el ? el.getBoundingClientRect().width / 8 : 50;
-})();
+// Set overlay SVG size to match board
+const _overlay = document.getElementById('board-overlay');
+if (_overlay) { _overlay.style.width = BOARD_SIZE + 'px'; _overlay.style.height = BOARD_SIZE + 'px'; }
+
+// Set eval bar height to match board
+const _evalWrap = document.getElementById('eval-bar-wrap');
+if (_evalWrap) _evalWrap.style.height = BOARD_SIZE + 'px';
+
+const SQ = BOARD_SIZE / 8;
 
 let showLastMove = true;
 let showBestMove = true;
