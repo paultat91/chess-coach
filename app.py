@@ -18,6 +18,7 @@ import analysis as analysis_module
 import database
 from openings import resolve_opening
 import sync as sync_module
+import lichess_sync as lichess_module
 
 _CLK_RE = re.compile(r'\[%clk (\d+):(\d+):(\d+(?:\.\d+)?)\]')
 
@@ -442,6 +443,24 @@ def progress():
         opponent_stats=opponent_stats,
         opening_stats=opening_stats,
     )
+
+
+@app.route("/sync/lichess", methods=["POST"])
+def sync_lichess():
+    player = database.get_setting("player_name", "")
+    lichess_user = request.form.get("lichess_user", player).strip()
+    if not lichess_user:
+        return jsonify({"error": "No Lichess username provided."}), 400
+    max_games = int(request.form.get("max_games", 50))
+    perf_type  = request.form.get("perf_type", "") or None
+    try:
+        result = lichess_module.sync(lichess_user, max_games=max_games,
+                                     perf_type=perf_type)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Sync failed: {e}"}), 500
 
 
 if __name__ == "__main__":

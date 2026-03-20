@@ -7,7 +7,12 @@
   <div style="display:flex; gap:8px; align-items:center;">
     {% if player_name %}
     <button class="btn btn-secondary" onclick="openSyncModal()" title="Sync games from Chess.com">
-      ⟳ Sync Chess.com
+      ⟳ Chess.com
+    </button>
+    <button class="btn btn-secondary" onclick="openLichessModal()"
+            title="Sync games from Lichess"
+            style="border-color:#b7a5e0; color:#b7a5e0;">
+      ⟳ Lichess
     </button>
     {% endif %}
     <button class="btn btn-primary" onclick="document.getElementById('import-modal').style.display='flex'">
@@ -285,11 +290,111 @@
   </div>
 </div>
 
+<!-- Lichess sync modal -->
+<div id="lichess-modal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
+            z-index:100; align-items:center; justify-content:center;">
+  <div class="card" style="width:420px; max-width:92vw;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h2 style="font-size:17px; font-weight:700; color:#b7a5e0;">⟳ Sync from Lichess</h2>
+      <button onclick="closeLichessModal()"
+              style="background:none; border:none; color:#8b949e; font-size:20px; cursor:pointer; line-height:1;">✕</button>
+    </div>
+
+    <div id="lichess-idle">
+      <div style="margin-bottom:14px;">
+        <label style="display:block; font-size:13px; color:#8b949e; margin-bottom:6px;">Lichess username</label>
+        <input type="text" id="lichess-user" value="{{ player_name }}"
+               placeholder="your lichess username"
+               style="width:100%; padding:8px 10px; background:#0d1117; border:1px solid #30363d;
+                      border-radius:6px; color:#e6edf3; font-size:14px; box-sizing:border-box;">
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block; font-size:13px; color:#8b949e; margin-bottom:6px;">Number of games</label>
+        <select id="lichess-max"
+                style="width:100%; padding:8px 10px; background:#0d1117; border:1px solid #30363d;
+                       border-radius:6px; color:#e6edf3; font-size:14px;">
+          <option value="20">20 games</option>
+          <option value="50" selected>50 games</option>
+          <option value="100">100 games</option>
+          <option value="200">200 games</option>
+        </select>
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:13px; color:#8b949e; margin-bottom:6px;">Time control (optional)</label>
+        <select id="lichess-perf"
+                style="width:100%; padding:8px 10px; background:#0d1117; border:1px solid #30363d;
+                       border-radius:6px; color:#e6edf3; font-size:14px;">
+          <option value="">All formats</option>
+          <option value="bullet">Bullet</option>
+          <option value="blitz">Blitz</option>
+          <option value="rapid">Rapid</option>
+          <option value="classical">Classical</option>
+          <option value="correspondence">Correspondence</option>
+        </select>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="closeLichessModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="runLichessSync()"
+                style="background:#6e40c9; border-color:#8957e5;">Sync Now</button>
+      </div>
+    </div>
+
+    <div id="lichess-busy" style="display:none; text-align:center; padding:16px 0;">
+      <div style="display:flex; align-items:center; justify-content:center; gap:10px;
+                  color:#8b949e; font-size:14px; margin-bottom:8px;">
+        <div style="width:18px; height:18px; border:2px solid #30363d; border-top-color:#b7a5e0;
+                    border-radius:50%; animation:spin .7s linear infinite;"></div>
+        Fetching games from Lichess…
+      </div>
+    </div>
+
+    <div id="lichess-result" style="display:none;">
+      <div id="lichess-result-body" style="margin-bottom:20px;"></div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="closeLichessModal(); window.location.reload();">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
 
 <script>
 function openSyncModal()  { document.getElementById('sync-modal').style.display = 'flex'; }
 function closeSyncModal() { document.getElementById('sync-modal').style.display = 'none'; }
+function openLichessModal()  { document.getElementById('lichess-modal').style.display = 'flex'; }
+function closeLichessModal() { document.getElementById('lichess-modal').style.display = 'none'; }
+
+function runLichessSync() {
+  document.getElementById('lichess-idle').style.display   = 'none';
+  document.getElementById('lichess-busy').style.display   = 'block';
+  document.getElementById('lichess-result').style.display = 'none';
+  const body = new FormData();
+  body.append('lichess_user', document.getElementById('lichess-user').value);
+  body.append('max_games',    document.getElementById('lichess-max').value);
+  body.append('perf_type',    document.getElementById('lichess-perf').value);
+  fetch('/sync/lichess', { method: 'POST', body })
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('lichess-busy').style.display   = 'none';
+      document.getElementById('lichess-result').style.display = 'block';
+      const rb = document.getElementById('lichess-result-body');
+      if (d.error) {
+        rb.innerHTML = `<p style="color:#f85149;">${d.error}</p>`;
+      } else {
+        rb.innerHTML = `<p style="font-size:14px;">
+          <span style="color:#56d364;">✓ ${d.imported} imported</span> &nbsp;
+          <span style="color:#8b949e;">${d.skipped} already here &nbsp; ${d.errors} errors</span>
+        </p>`;
+      }
+    })
+    .catch(e => {
+      document.getElementById('lichess-busy').style.display   = 'none';
+      document.getElementById('lichess-result').style.display = 'block';
+      document.getElementById('lichess-result-body').innerHTML = `<p style="color:#f85149;">Network error: ${e.message}</p>`;
+    });
+}
 
 function runSync() {
   document.getElementById('sync-idle').style.display = 'none';
