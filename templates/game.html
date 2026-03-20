@@ -215,9 +215,24 @@
   <!-- Right: move list -->
   <div class="card" style="flex:1; min-width:220px; padding:0; overflow:hidden;">
     <div style="padding:10px 16px; border-bottom:1px solid #30363d; font-size:11px;
-                font-weight:600; color:#8b949e; text-transform:uppercase; letter-spacing:.5px;">
+                font-weight:600; color:#8b949e; text-transform:uppercase; letter-spacing:.5px;
+                display:flex; justify-content:space-between; align-items:center;">
       Moves
+      {% if game.analyzed %}
+      <span style="font-size:10px; color:#484f58; font-weight:400; letter-spacing:0;">
+        Critical moments below ↓
+      </span>
+      {% endif %}
     </div>
+
+    {% if game.analyzed %}
+    <!-- Critical moments strip -->
+    <div id="critical-strip"
+         style="padding:6px 10px; border-bottom:1px solid #21262d;
+                display:flex; flex-wrap:wrap; gap:4px; min-height:34px;">
+      <span style="font-size:11px; color:#484f58; align-self:center;">Loading…</span>
+    </div>
+    {% endif %}
     <div class="move-list" id="move-list">
       {% for move in moves %}
       {% set idx = loop.index0 %}
@@ -544,6 +559,44 @@ function setAhead(n) {
 // Initialise button states
 syncToggleBtn('toggle-last', showLastMove);
 syncToggleBtn('toggle-best', showBestMove);
+
+// ============================================================
+// Critical moments strip
+// ============================================================
+(function loadCriticalMoments() {
+  const strip = document.getElementById('critical-strip');
+  if (!strip) return;
+
+  const CLS_COLOR = {
+    blunder: '#f85149', mistake: '#e07b39',
+    inaccuracy: '#d4a017', good: '#a8d050', best: '#56d364'
+  };
+
+  fetch(`/api/critical/{{ game.id }}`)
+    .then(r => r.json())
+    .then(moments => {
+      if (!moments.length) {
+        strip.innerHTML = '<span style="font-size:11px;color:#484f58;">No significant errors found</span>';
+        return;
+      }
+      strip.innerHTML = moments.map(m => {
+        const loss = m.cp_loss >= 100 ? (m.cp_loss / 100).toFixed(1) + ' ♟' : Math.round(m.cp_loss) + ' cp';
+        const dot  = CLS_COLOR[m.classification] || '#8b949e';
+        const label = m.color === 'white' ? m.move_number + '.' : m.move_number + '…';
+        return `<button onclick="goToMove(${m.move_idx + 1})"
+                        title="${m.classification} — ${loss} loss"
+                        style="background:#161b22; border:1px solid #30363d; border-radius:5px;
+                               padding:3px 8px; cursor:pointer; font-size:12px; color:#e6edf3;
+                               display:flex; align-items:center; gap:4px; white-space:nowrap;">
+                  <span style="color:${dot}; font-size:9px;">●</span>
+                  <span style="color:#8b949e; font-size:11px;">${label}</span>
+                  ${m.san}
+                  <span style="font-size:10px; color:#484f58;">${loss}</span>
+                </button>`;
+      }).join('');
+    })
+    .catch(() => { strip.innerHTML = ''; });
+})();
 
 // Initialise
 updateEvalBar(0);

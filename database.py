@@ -264,6 +264,22 @@ def get_game_stats(game_id: int):
         return dict(row) if row else None
 
 
+def get_critical_moves(game_id: int, n: int = 5) -> list:
+    """Return the top-N moves by centipawn loss, ordered by move_idx."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT move_idx, move_number, color, san, uci,
+                      cp_loss, classification, eval_before, eval_after
+               FROM moves
+               WHERE game_id = ? AND is_forced = 0 AND cp_loss > 0
+               ORDER BY cp_loss DESC LIMIT ?""",
+            (game_id, n),
+        ).fetchall()
+        # Return in game order
+        result = sorted([dict(r) for r in rows], key=lambda m: m["move_idx"])
+        return result
+
+
 def save_analysis(game_id: int, moves_data: list, stats: dict):
     with get_db() as conn:
         conn.execute("DELETE FROM moves WHERE game_id = ?", (game_id,))
