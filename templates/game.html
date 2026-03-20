@@ -409,8 +409,15 @@ function updateMoveDetail(idx) {
     ? `<span style="color:#6e7681; margin-left:10px;">−${(m.cp_loss / 100).toFixed(2)} pawns</span>`
     : '';
 
+  const clkParts  = m.clock ? m.clock.split(':') : [];
+  const clkSecs   = clkParts.length === 3 ? (+clkParts[0] * 3600 + +clkParts[1] * 60 + +clkParts[2])
+                  : clkParts.length === 2 ? (+clkParts[0] * 60  + +clkParts[1])
+                  : clkParts.length === 1 ? +clkParts[0] : null;
+  const clkUnderPressure = clkSecs !== null && clkSecs <= 10;
   const clockHtml = m.clock
-    ? `<span style="color:#6e7681; font-size:12px; margin-left:10px;">🕐 ${m.clock}</span>`
+    ? `<span style="font-size:12px; margin-left:10px; ${clkUnderPressure ? 'color:#f85149; font-weight:600;' : 'color:#6e7681;'}">
+         ${clkUnderPressure ? '⚡' : '🕐'} ${m.clock}
+       </span>`
     : '';
 
   el.innerHTML = `
