@@ -226,6 +226,13 @@
       <button class="btn btn-secondary btn-sm" onclick="nextMove()" title="Next →">▶</button>
       <button class="btn btn-secondary btn-sm" onclick="goToMove(positions.length - 1)" title="End">⏭</button>
       <button class="btn btn-secondary btn-sm" onclick="flipBoard()" title="Flip board" style="margin-left:6px;">⇅ Flip</button>
+      {% if game.analyzed %}
+      <button id="train-btn" class="btn btn-secondary btn-sm"
+              onclick="toggleTraining()"
+              style="margin-left:12px; border-color:#8957e5;">
+        🎯 Guess moves
+      </button>
+      {% endif %}
     </div>
 
     <!-- Eval graph -->
@@ -236,6 +243,25 @@
               title="Click to jump to any move"
               style="display:block; border-radius:6px; cursor:crosshair;
                      border:1px solid #21262d;"></canvas>
+    </div>
+    {% endif %}
+
+    <!-- Training mode feedback panel -->
+    {% if game.analyzed %}
+    <div id="training-panel"
+         style="display:none; margin-top:10px; padding:12px 16px; padding-left:44px;
+                background:#161b22; border:1px solid #8957e5; border-radius:8px; width:432px;
+                box-sizing:border-box;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <span style="font-size:13px; font-weight:600; color:#d2a8ff;">
+          🎯 Guess the move
+        </span>
+        <span id="train-score" style="font-size:12px; color:#8b949e;">Score: 0 / 0</span>
+      </div>
+      <div id="train-prompt" style="font-size:13px; color:#e6edf3; margin-bottom:6px;">
+        Click a piece to move it. Your guess will be evaluated.
+      </div>
+      <div id="train-result" style="font-size:13px; min-height:18px;"></div>
     </div>
     {% endif %}
 
@@ -460,6 +486,7 @@ function goToMove(idx) {
   updateCompare(idx);
   redrawOverlay();
   drawEvalGraph();
+  if (trainingActive) updateTrainingPrompt();
 }
 
 function nextMove() { goToMove(currentIdx + 1); }
@@ -484,12 +511,12 @@ function flipBoard() {
 document.addEventListener('keydown', e => {
   // Ignore shortcuts when typing in an input
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
-  if (e.key === 'ArrowRight' || e.key === 'f') nextMove();
+  if (e.key === 'ArrowRight' || e.key === 'f') { if (!trainingActive) nextMove(); }
   if (e.key === 'ArrowLeft'  || e.key === 'd') prevMove();
   if (e.key === 'Home'       || e.key === 'g') goToMove(0);
   if (e.key === 'End'        || e.key === 'G') goToMove(positions.length - 1);
   if (e.key === 'F' || e.key === 'r')          flipBoard();
-  // Jump to next blunder/mistake
+  // Jump to next/prev blunder or mistake
   if (e.key === 'n' || e.key === 'N') {
     const dir = e.key === 'n' ? 1 : -1;
     let i = currentIdx + dir;
@@ -535,17 +562,14 @@ function updateCompare(idx) {
   panel.style.display = 'block';
   initCompareBoards();
 
-  // Position BEFORE the move
   const fenBefore = positions[idx - 1];
   const orient    = currentOrientation;
 
-  // Apply the actual move to get "played" position
   const chessPlayed = new Chess(fenBefore);
   chessPlayed.move({ from: m.uci.slice(0,2), to: m.uci.slice(2,4), promotion: m.uci[4] || 'q' });
   boardPlayed.orientation(orient);
   boardPlayed.position(chessPlayed.fen(), false);
 
-  // Apply the best move to get "best" position
   const chessBest = new Chess(fenBefore);
   chessBest.move({ from: m.best_move_uci.slice(0,2), to: m.best_move_uci.slice(2,4), promotion: m.best_move_uci[4] || 'q' });
   boardBest.orientation(orient);
@@ -553,6 +577,123 @@ function updateCompare(idx) {
 
   const loss = m.cp_loss ? `−${(m.cp_loss / 100).toFixed(2)} pawns` : '';
   note.textContent = `${m.san} was a ${m.classification} ${loss ? '(' + loss + ')' : ''} — best was ${m.best_move_san}`;
+}
+
+// ============================================================
+// Training mode — "Guess the move"
+// ============================================================
+let trainingActive   = false;
+let trainingScore    = 0;
+let trainingAttempts = 0;
+let trainingGuessed  = false;
+let guessedUci       = null;
+
+function toggleTraining() {
+  trainingActive = !trainingActive;
+  const btn   = document.getElementById('train-btn');
+  const panel = document.getElementById('training-panel');
+  if (trainingActive) {
+    trainingScore = trainingAttempts = 0;
+    btn.style.background  = '#6e40c9';
+    btn.style.borderColor = '#8957e5';
+    btn.style.color       = '#fff';
+    panel.style.display   = 'block';
+    if (currentIdx === positions.length - 1) goToMove(0);
+    rebuildTrainingBoard();
+    updateTrainingPrompt();
+  } else {
+    btn.style.background  = '';
+    btn.style.borderColor = '#8957e5';
+    btn.style.color       = '';
+    panel.style.display   = 'none';
+    board = Chessboard('board', {
+      position:    positions[currentIdx],
+      orientation: currentOrientation,
+      pieceTheme:  'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+    });
+  }
+}
+
+function rebuildTrainingBoard() {
+  board = Chessboard('board', {
+    position:    positions[currentIdx],
+    orientation: currentOrientation,
+    pieceTheme:  'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+    draggable:   true,
+    onDrop:      onTrainingDrop,
+    onSnapEnd:   onTrainingSnapEnd,
+  });
+}
+
+function updateTrainingPrompt() {
+  const prompt = document.getElementById('train-prompt');
+  const result = document.getElementById('train-result');
+  if (!prompt) return;
+  result.innerHTML = '';
+  if (currentIdx >= moves.length) {
+    prompt.innerHTML = `<span style="color:#56d364;">Game over — score: <strong>${trainingScore.toFixed(1)} / ${trainingAttempts}</strong></span>`;
+    return;
+  }
+  const m = moves[currentIdx];
+  prompt.textContent = `${m.color === 'white' ? 'White' : 'Black'} to move (move ${m.move_number}) — drag a piece`;
+  trainingGuessed = false;
+}
+
+function updateTrainingScore() {
+  const el = document.getElementById('train-score');
+  if (el) el.textContent = `Score: ${trainingScore.toFixed(1)} / ${trainingAttempts}`;
+}
+
+function onTrainingDrop(source, target) {
+  if (!trainingActive || trainingGuessed) return 'snapback';
+  if (currentIdx >= moves.length) return 'snapback';
+  const ch = new Chess(positions[currentIdx]);
+  if (!ch.move({ from: source, to: target, promotion: 'q' })) return 'snapback';
+  guessedUci = source + target;
+}
+
+function onTrainingSnapEnd() {
+  if (!trainingActive || !guessedUci || trainingGuessed) return;
+  trainingGuessed = true;
+  trainingAttempts++;
+  const m      = moves[currentIdx];
+  const result = document.getElementById('train-result');
+  let html = '';
+
+  if (guessedUci === m.best_move_uci) {
+    trainingScore += 1;
+    html = `<span style="color:#56d364; font-weight:600;">✓ Best move! (${m.best_move_san || guessedUci})</span>`;
+  } else if (guessedUci === m.uci) {
+    trainingScore += 0.5;
+    html = `<span style="color:#a8d050;">~ Game move (${m.san})</span>`;
+    if (m.best_move_san && m.best_move_uci !== m.uci)
+      html += `<span style="color:#8b949e; font-size:11px; margin-left:6px;">engine: <strong style="color:#2da44e;">${m.best_move_san}</strong></span>`;
+  } else {
+    const ch = new Chess(positions[currentIdx]);
+    let guessedSan = guessedUci;
+    try { const r = ch.move({from:guessedUci.slice(0,2), to:guessedUci.slice(2,4), promotion:'q'}); if (r) guessedSan = r.san; } catch(_) {}
+    html = `<span style="color:#f85149;">✗ ${guessedSan}</span>`;
+    if (m.best_move_san) html += `<span style="color:#8b949e; font-size:11px; margin-left:6px;">best: <strong style="color:#2da44e;">${m.best_move_san}</strong> · played: <strong>${m.san}</strong></span>`;
+  }
+  html += `<button onclick="trainingNext()" style="margin-left:10px; background:none;
+             border:1px solid #30363d; border-radius:4px; color:#8b949e;
+             font-size:11px; cursor:pointer; padding:2px 8px;">Next →</button>`;
+  result.innerHTML = html;
+  updateTrainingScore();
+  guessedUci = null;
+}
+
+function trainingNext() {
+  const next = currentIdx + 1;
+  if (next >= positions.length) return;
+  board.position(positions[next], false);
+  currentIdx = next;
+  const cp = moves[next - 1] ? moves[next - 1].eval_after : 0;
+  updateEvalBar(cp);
+  updateMoveCounter(next);
+  highlightMove(next);
+  redrawOverlay();
+  updateTrainingPrompt();
 }
 
 // ============================================================
