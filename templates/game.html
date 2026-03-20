@@ -37,6 +37,28 @@
   /* Spinner */
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner { width: 20px; height: 20px; border: 2px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: spin .7s linear infinite; }
+
+  /* ── Mobile ─────────────────────────────────────────────── */
+  @media (max-width: 700px) {
+    /* Board: shrink to viewport width */
+    #board, #board-overlay { width: calc(100vw - 56px) !important; height: calc(100vw - 56px) !important; }
+    .eval-bar-wrap { height: calc(100vw - 56px) !important; }
+
+    /* Board wrapper: full-width */
+    #board-outer { flex-direction: column !important; }
+
+    /* Move list: full width, fixed height */
+    .move-list { height: 220px !important; }
+
+    /* Detail & overlays: full width */
+    .move-detail, #candidates-panel { width: 100% !important; }
+
+    /* Nav buttons wrap */
+    #nav-row { flex-wrap: wrap !important; }
+
+    /* Accuracy cards: single column */
+    .acc-grid { grid-template-columns: 1fr !important; }
+  }
 </style>
 {% endblock %}
 
@@ -100,7 +122,7 @@
 {% endif %}
 
 <!-- Accuracy summary cards -->
-<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px;">
+<div class="acc-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px;">
   {% for side, label, acc, blunders, mistakes, inaccuracies in [
       ('white', game.white, stats.white_accuracy, stats.white_blunders, stats.white_mistakes, stats.white_inaccuracies),
       ('black', game.black, stats.black_accuracy, stats.black_blunders, stats.black_mistakes, stats.black_inaccuracies)
@@ -129,7 +151,7 @@
 </div>
 
 <!-- Board + move list -->
-<div style="display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;">
+<div id="board-outer" style="display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;">
 
   <!-- Left: eval bar + board + nav + detail -->
   <div style="flex-shrink:0;">
@@ -167,7 +189,7 @@
     </div>
 
     <!-- Navigation -->
-    <div style="display:flex; align-items:center; gap:6px; margin-top:12px; padding-left:28px;">
+    <div id="nav-row" style="display:flex; align-items:center; gap:6px; margin-top:12px; padding-left:28px;">
       <button class="btn btn-secondary btn-sm" onclick="goToMove(0)" title="Start">⏮</button>
       <button class="btn btn-secondary btn-sm" onclick="prevMove()" title="← Prev">◀</button>
       <span id="move-counter"
@@ -373,7 +395,11 @@ document.addEventListener('keydown', e => {
 // ============================================================
 // Board overlay — last move · best move (engine) · PV · next moves played
 // ============================================================
-const SQ = 400 / 8;   // 50 px per square
+// Derive square size from actual rendered board (respects mobile scaling)
+const SQ = (() => {
+  const el = document.getElementById('board');
+  return el ? el.getBoundingClientRect().width / 8 : 50;
+})();
 
 let showLastMove = true;
 let showBestMove = true;
