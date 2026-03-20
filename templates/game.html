@@ -232,7 +232,7 @@
               width="432" height="68"
               title="Click to jump to any move"
               style="display:block; border-radius:6px; cursor:crosshair;
-                     border:1px solid #21262d;"></canvas>
+                     border:1px solid #21262d; touch-action:none;"></canvas>
     </div>
     {% endif %}
 
@@ -426,7 +426,20 @@ function highlightMove(idx) {
   document.querySelectorAll('.move-btn').forEach(b => b.classList.remove('active'));
   if (idx > 0) {
     const btn = document.getElementById('move-btn-' + (idx - 1));
-    if (btn) { btn.classList.add('active'); btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    if (btn) {
+      btn.classList.add('active');
+      // Scroll only within the move-list container — never scroll the page
+      const list = document.getElementById('move-list');
+      if (list) {
+        const btnTop    = btn.offsetTop;
+        const btnBottom = btnTop + btn.offsetHeight;
+        if (btnTop < list.scrollTop) {
+          list.scrollTop = btnTop - 4;
+        } else if (btnBottom > list.scrollTop + list.clientHeight) {
+          list.scrollTop = btnBottom - list.clientHeight + 4;
+        }
+      }
+    }
   }
 }
 
