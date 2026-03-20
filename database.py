@@ -271,7 +271,8 @@ def get_critical_moves(game_id: int, n: int = 5) -> list:
             """SELECT move_idx, move_number, color, san, uci,
                       cp_loss, classification, eval_before, eval_after
                FROM moves
-               WHERE game_id = ? AND is_forced = 0 AND cp_loss > 0
+               WHERE game_id = ? AND is_forced = 0
+                 AND classification IN ('inaccuracy', 'mistake', 'blunder')
                ORDER BY cp_loss DESC LIMIT ?""",
             (game_id, n),
         ).fetchall()
