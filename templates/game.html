@@ -752,6 +752,15 @@ if (GRAPH_CANVAS) {
   });
 }
 
+// Tap / click the board → advance to next move (convenient on mobile)
+document.getElementById('board').addEventListener('click', e => {
+  // Ignore when training mode is active (board is interactive for dragging)
+  if (trainingActive) return;
+  // Only fire if the click wasn't on a piece drag (chessboard.js fires its own events)
+  if (e.target.closest('.piece-417db')) return;
+  nextMove();
+});
+
 // ============================================================
 // Critical moments strip
 // ============================================================

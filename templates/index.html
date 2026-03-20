@@ -142,7 +142,7 @@
         <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Time</th>
         <th style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Result</th>
         <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Opening</th>
-        {{ sort_th('My Accuracy', 'accuracy') }}
+        <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Accuracy</th>
         <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Date</th>
         <th style="padding:11px 16px;"></th>
       </tr>
@@ -199,12 +199,12 @@
               {%- elif g.result == '0-1' %}#f85149
               {%- else %}#8b949e{% endif %};">{{ g.result }}</span>
           {% endif %}
-          {{ termination_badge(g.termination, g.result, g.white, g.black) }}
+          <span class="col-hide-mobile">{{ termination_badge(g.termination, g.result, g.white, g.black) }}</span>
         </td>
         <td class="col-hide-mobile" style="padding:11px 16px; color:#8b949e; font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
           {{ g.opening or g.eco or "—" }}
         </td>
-        <td style="padding:11px 16px; font-size:13px;">
+        <td class="col-hide-mobile" style="padding:11px 16px; font-size:13px;">
           {% if g.analyzed %}
             {% if my_acc is not none %}
               <span style="font-weight:600; color:#e6edf3;">{{ my_acc }}%</span>
