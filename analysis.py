@@ -1,5 +1,6 @@
 import io
 import math
+import statistics
 
 import chess
 import chess.engine
@@ -52,6 +53,45 @@ def move_accuracy(win_loss: float) -> float:
     """
     acc = 103.1668 * math.exp(-0.04354 * max(0.0, win_loss)) - 3.1669
     return round(max(0.0, min(100.0, acc)), 1)
+
+
+def game_accuracy(moves: list) -> float:
+    """Lichess-style game accuracy: average of harmonic mean and
+    volatility-weighted mean of per-move accuracy scores.
+
+    Simple arithmetic mean is misleading: a few 100% moves can mask a
+    catastrophic blunder.  The harmonic mean penalises bad moves strongly;
+    the volatility-weighted mean concentrates on critical (swinging)
+    moments.  Their average closely matches Lichess / Chess.com figures.
+
+    Each element of `moves` must have keys: 'accuracy', 'eval_before', 'color'.
+    """
+    if not moves:
+        return 0.0
+    accs = [m["accuracy"] for m in moves]
+    n = len(accs)
+
+    # Harmonic mean (heavily penalises single poor moves)
+    harmonic = n / sum(1.0 / max(a, 0.1) for a in accs)
+
+    # Volatility-weighted mean — critical/swinging positions count more.
+    window = max(3, int(math.sqrt(n)))
+    is_white = moves[0]["color"] == "white"
+    vols = []
+    for i in range(n):
+        start = max(0, i - window // 2)
+        end   = min(n, start + window)
+        chunk_evals = [moves[j]["eval_before"] for j in range(start, end)]
+        if is_white:
+            chunk_wins = [cp_to_win_percent(e) for e in chunk_evals]
+        else:
+            chunk_wins = [100.0 - cp_to_win_percent(e) for e in chunk_evals]
+        vols.append(statistics.stdev(chunk_wins) if len(chunk_wins) > 1 else 1.0)
+
+    total_vol = sum(vols) or 1.0
+    vol_weighted = sum(accs[i] * vols[i] for i in range(n)) / total_vol
+
+    return round((harmonic + vol_weighted) / 2.0, 1)
 
 
 def format_eval(cp: float) -> str:
@@ -162,9 +202,6 @@ def analyse_game(pgn_text: str) -> dict:
     white_moves = [m for m in moves_data if m["color"] == "white"]
     black_moves = [m for m in moves_data if m["color"] == "black"]
 
-    def avg_acc(moves):
-        return round(sum(m["accuracy"] for m in moves) / len(moves), 1) if moves else 0.0
-
     def count_cls(moves, cls):
         return sum(1 for m in moves if m["classification"] == cls)
 
@@ -175,8 +212,8 @@ def analyse_game(pgn_text: str) -> dict:
     )
 
     stats = {
-        "white_accuracy": avg_acc(white_moves),
-        "black_accuracy": avg_acc(black_moves),
+        "white_accuracy": game_accuracy(white_moves),
+        "black_accuracy": game_accuracy(black_moves),
         "white_blunders": count_cls(white_moves, "blunder"),
         "black_blunders": count_cls(black_moves, "blunder"),
         "white_mistakes": count_cls(white_moves, "mistake"),
