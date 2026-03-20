@@ -288,6 +288,18 @@
       </div>
       <div style="text-align:center; margin-top:8px; font-size:12px; color:#8b949e;" id="compare-note"></div>
     </div>
+
+    <!-- Top-3 candidate moves (Multi-PV) -->
+    <div id="candidates-panel"
+         style="width:432px; margin-top:8px; display:none;
+                background:#161b22; border:1px solid #30363d; border-radius:6px;
+                overflow:hidden;">
+      <div style="font-size:11px; font-weight:600; color:#8b949e; text-transform:uppercase;
+                  letter-spacing:.5px; padding:6px 12px; border-bottom:1px solid #21262d;">
+        Engine candidates
+      </div>
+      <div id="candidates-list" style="padding:4px 0;"></div>
+    </div>
   </div>
 
   <!-- Right: move list -->
@@ -432,6 +444,72 @@ function updateMoveDetail(idx) {
     </div>`;
 }
 
+// ---------- Multi-PV candidates ----------
+const GAME_ID = {{ game.id }};
+const candCache = {};   // move_idx → candidates[]
+
+function updateCandidates(idx) {
+  const panel = document.getElementById('candidates-panel');
+  const list  = document.getElementById('candidates-list');
+  if (!panel || !list) return;
+
+  if (idx === 0 || idx > moves.length) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  const moveIdx = moves[idx - 1].move_idx;
+
+  const render = (cands) => {
+    if (!cands || cands.length === 0) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+
+    // Eval range to build relative bar width
+    const best = cands[0].eval_cp ?? 0;
+    const worst = cands[cands.length - 1].eval_cp ?? 0;
+    const range = Math.abs(best - worst) || 1;
+
+    list.innerHTML = cands.map((c, i) => {
+      const barW = i === 0 ? 100 : Math.max(10, 100 - (Math.abs(best - c.eval_cp) / range) * 70);
+      const rankColor = ['#2da44e', '#58a6ff', '#8b949e'][i] || '#8b949e';
+      const isPlayed = c.uci === moves[idx - 1].uci;
+      return `
+        <div style="display:flex; align-items:center; gap:8px; padding:5px 12px;
+                    ${isPlayed ? 'background:#1c2a1c;' : ''}
+                    border-bottom:1px solid #21262d;">
+          <span style="font-size:11px; color:${rankColor}; font-weight:700;
+                       min-width:14px; text-align:center;">${i + 1}</span>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+              <span style="font-size:13px; font-weight:600; color:#e6edf3;">
+                ${c.san}${isPlayed ? ' <span style="font-size:10px; color:#56d364;">(played)</span>' : ''}
+              </span>
+              <span style="font-size:12px; color:#8b949e; font-variant-numeric:tabular-nums;">
+                ${c.eval_str}
+              </span>
+            </div>
+            <div style="height:4px; background:#21262d; border-radius:2px;">
+              <div style="height:4px; width:${barW}%; background:${rankColor};
+                           border-radius:2px; transition:width .2s;"></div>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  };
+
+  if (candCache[moveIdx] !== undefined) {
+    render(candCache[moveIdx]);
+  } else {
+    fetch(`/api/candidates/${GAME_ID}/${moveIdx}`)
+      .then(r => r.json())
+      .then(d => {
+        candCache[moveIdx] = d;
+        render(d);
+      })
+      .catch(() => { panel.style.display = 'none'; });
+  }
+}
+
 // ---------- Navigation ----------
 function updateMoveCounter(idx) {
   const el = document.getElementById('move-counter');
@@ -458,6 +536,7 @@ function goToMove(idx) {
   updateMoveCounter(idx);
   highlightMove(idx);
   updateCompare(idx);
+  updateCandidates(idx);
   redrawOverlay();
   drawEvalGraph();
 }

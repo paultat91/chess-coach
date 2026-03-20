@@ -272,6 +272,12 @@ def get_critical(game_id):
     return jsonify(rows)
 
 
+@app.route("/api/candidates/<int:game_id>/<int:move_idx>")
+def get_candidates(game_id, move_idx):
+    rows = database.get_move_candidates(game_id, move_idx)
+    return jsonify(rows)
+
+
 @app.route("/api/pv", methods=["POST"])
 def get_pv():
     import chess as _chess

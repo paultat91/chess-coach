@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS moves (
     is_forced      INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS move_candidates (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id   INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    move_idx  INTEGER NOT NULL,
+    rank      INTEGER NOT NULL,   -- 1 = best, 2 = second, 3 = third
+    uci       TEXT    NOT NULL,
+    san       TEXT    NOT NULL,
+    eval_cp   REAL,
+    eval_str  TEXT
+);
+
 CREATE TABLE IF NOT EXISTS game_stats (
     game_id             INTEGER PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
     white_accuracy      REAL,
@@ -281,10 +292,21 @@ def get_critical_moves(game_id: int, n: int = 5) -> list:
         return result
 
 
+def get_move_candidates(game_id: int, move_idx: int) -> list:
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT rank, uci, san, eval_cp, eval_str "
+            "FROM move_candidates WHERE game_id=? AND move_idx=? ORDER BY rank",
+            (game_id, move_idx),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def save_analysis(game_id: int, moves_data: list, stats: dict):
     with get_db() as conn:
-        conn.execute("DELETE FROM moves WHERE game_id = ?", (game_id,))
-        conn.execute("DELETE FROM game_stats WHERE game_id = ?", (game_id,))
+        conn.execute("DELETE FROM moves            WHERE game_id = ?", (game_id,))
+        conn.execute("DELETE FROM game_stats       WHERE game_id = ?", (game_id,))
+        conn.execute("DELETE FROM move_candidates  WHERE game_id = ?", (game_id,))
 
         for m in moves_data:
             conn.execute(
@@ -313,6 +335,14 @@ def save_analysis(game_id: int, moves_data: list, stats: dict):
                     1 if m["is_forced"] else 0,
                 ),
             )
+            for rank, cand in enumerate(m.get("candidates", []), start=1):
+                conn.execute(
+                    "INSERT INTO move_candidates "
+                    "(game_id, move_idx, rank, uci, san, eval_cp, eval_str) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (game_id, m["move_idx"], rank,
+                     cand["uci"], cand["san"], cand["eval_cp"], cand["eval_str"]),
+                )
 
         conn.execute(
             """INSERT INTO game_stats

@@ -123,15 +123,33 @@ def analyse_game(pgn_text: str) -> dict:
             is_forced = len(legal_moves) == 1
             san = board.san(move)
 
-            # Evaluate the position before the move
-            info_before = engine.analyse(
-                board, chess.engine.Limit(time=ANALYSIS_TIME)
+            # Evaluate the position before the move — ask for top 3 candidates
+            infos = engine.analyse(
+                board, chess.engine.Limit(time=ANALYSIS_TIME), multipv=3
             )
+            # multipv=3 always returns a list; normalise to list
+            if isinstance(infos, dict):
+                infos = [infos]
+            info_before = infos[0]
             eval_before_cp = score_to_cp(info_before["score"])
             pv = info_before.get("pv", [])
             best_move = pv[0] if pv else None
             best_move_uci = best_move.uci() if best_move else None
             best_move_san = board.san(best_move) if best_move else None
+
+            # Build top-3 candidate list
+            candidates = []
+            for info in infos:
+                c_pv = info.get("pv", [])
+                if not c_pv:
+                    continue
+                c_move = c_pv[0]
+                candidates.append({
+                    "uci": c_move.uci(),
+                    "san": board.san(c_move),
+                    "eval_cp": round(score_to_cp(info["score"]), 1),
+                    "eval_str": format_eval(score_to_cp(info["score"])),
+                })
 
             # Play the actual move
             board.push(move)
@@ -178,6 +196,7 @@ def analyse_game(pgn_text: str) -> dict:
             moves_data.append(
                 {
                     "move_idx": move_idx,
+                    "candidates": candidates,
                     "move_number": move_number,
                     "color": "white" if color == chess.WHITE else "black",
                     "uci": move.uci(),
