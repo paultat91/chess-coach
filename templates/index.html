@@ -310,14 +310,15 @@
                       border-radius:6px; color:#e6edf3; font-size:14px; box-sizing:border-box;">
       </div>
       <div style="margin-bottom:14px;">
-        <label style="display:block; font-size:13px; color:#8b949e; margin-bottom:6px;">Number of games</label>
-        <select id="lichess-max"
+        <label style="display:block; font-size:13px; color:#8b949e; margin-bottom:6px;">How far back?</label>
+        <select id="lichess-months"
                 style="width:100%; padding:8px 10px; background:#0d1117; border:1px solid #30363d;
                        border-radius:6px; color:#e6edf3; font-size:14px;">
-          <option value="20">20 games</option>
-          <option value="50" selected>50 games</option>
-          <option value="100">100 games</option>
-          <option value="200">200 games</option>
+          <option value="1">This month</option>
+          <option value="2">Last 2 months</option>
+          <option value="3">Last 3 months</option>
+          <option value="6">Last 6 months</option>
+          <option value="12">Last 12 months</option>
         </select>
       </div>
       <div style="margin-bottom:20px;">
@@ -372,7 +373,7 @@ function runLichessSync() {
   document.getElementById('lichess-result').style.display = 'none';
   const body = new FormData();
   body.append('lichess_user', document.getElementById('lichess-user').value);
-  body.append('max_games',    document.getElementById('lichess-max').value);
+  body.append('months',       document.getElementById('lichess-months').value);
   body.append('perf_type',    document.getElementById('lichess-perf').value);
   fetch('/sync/lichess', { method: 'POST', body })
     .then(r => r.json())

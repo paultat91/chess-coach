@@ -37,30 +37,40 @@ def _get_pgn_stream(url: str) -> str:
         return resp.read().decode()
 
 
-def fetch_recent_games(username: str, max_games: int = 50,
+def _months_ago_ms(months: int) -> int:
+    """Return a Unix timestamp in milliseconds for N months ago."""
+    from datetime import timezone, timedelta
+    now = datetime.now(tz=timezone.utc)
+    # Approximate: 1 month ≈ 30.44 days
+    since = now - timedelta(days=months * 30.44)
+    return int(since.timestamp() * 1000)
+
+
+def fetch_recent_games(username: str, months: int = 1,
                        perf_type: str | None = None) -> str:
     """
-    Return a multi-game PGN string for the player's most recent games.
+    Return a multi-game PGN string for the player's games in the last N months.
     perf_type can be: bullet, blitz, rapid, classical, correspondence
     """
-    params = f"max={max_games}&clocks=true&opening=true&evals=false"
+    since_ms = _months_ago_ms(months)
+    params = f"since={since_ms}&clocks=true&opening=true&evals=false"
     if perf_type:
         params += f"&perfType={perf_type}"
     url = f"{API_BASE}/games/user/{username}?{params}"
     return _get_pgn_stream(url)
 
 
-def sync(username: str, max_games: int = 50,
+def sync(username: str, months: int = 1,
          perf_type: str | None = None) -> dict:
     """
-    Import up to `max_games` recent Lichess games for `username`.
+    Import Lichess games from the last `months` months for `username`.
     Skips games already in the database.
     Returns {"imported": N, "skipped": N, "errors": N}.
     """
     counts = {"imported": 0, "skipped": 0, "errors": 0}
 
     try:
-        pgn_text_all = fetch_recent_games(username, max_games=max_games,
+        pgn_text_all = fetch_recent_games(username, months=months,
                                           perf_type=perf_type)
     except urllib.error.HTTPError as e:
         if e.code == 404:

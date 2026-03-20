@@ -451,10 +451,10 @@ def sync_lichess():
     lichess_user = request.form.get("lichess_user", player).strip()
     if not lichess_user:
         return jsonify({"error": "No Lichess username provided."}), 400
-    max_games = int(request.form.get("max_games", 50))
-    perf_type  = request.form.get("perf_type", "") or None
+    months    = int(request.form.get("months", 1))
+    perf_type = request.form.get("perf_type", "") or None
     try:
-        result = lichess_module.sync(lichess_user, max_games=max_games,
+        result = lichess_module.sync(lichess_user, months=months,
                                      perf_type=perf_type)
         return jsonify(result)
     except ValueError as e:
