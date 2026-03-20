@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 {% block title %}My Games — Chess Coach{% endblock %}
 
+{% block extra_head %}
+<style>
+  @media (max-width: 700px) {
+    .col-hide-mobile { display: none; }
+    .btn-sm { padding: 6px 12px !important; font-size: 13px !important; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
   <h1 style="font-size:22px; font-weight:700;">My Games</h1>
@@ -129,12 +138,12 @@
         </th>
         {% endmacro %}
         {{ sort_th('Opponent', 'opponent') }}
-        <th style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Color</th>
+        <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Color</th>
         <th style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Time</th>
         <th style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Result</th>
-        {{ sort_th('Opening', 'opening') }}
+        <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Opening</th>
         {{ sort_th('My Accuracy', 'accuracy') }}
-        {{ sort_th('Date', 'date') }}
+        <th class="col-hide-mobile" style="padding:11px 16px; text-align:left; font-size:11px; color:#8b949e; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Date</th>
         <th style="padding:11px 16px;"></th>
       </tr>
     </thead>
@@ -165,7 +174,7 @@
         <td style="padding:11px 16px; font-weight:500;">
           {% if player_name and my_color %}{{ opponent }}{% else %}{{ g.white }} vs {{ g.black }}{% endif %}
         </td>
-        <td style="padding:11px 16px; font-size:13px;">
+        <td class="col-hide-mobile" style="padding:11px 16px; font-size:13px;">
           {% if my_color == 'white' %}
             <span title="You played White">⬜</span>
           {% elif my_color == 'black' %}
@@ -192,7 +201,7 @@
           {% endif %}
           {{ termination_badge(g.termination, g.result, g.white, g.black) }}
         </td>
-        <td style="padding:11px 16px; color:#8b949e; font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+        <td class="col-hide-mobile" style="padding:11px 16px; color:#8b949e; font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
           {{ g.opening or g.eco or "—" }}
         </td>
         <td style="padding:11px 16px; font-size:13px;">
@@ -206,7 +215,7 @@
             <span style="color:#484f58; font-size:12px;">—</span>
           {% endif %}
         </td>
-        <td style="padding:11px 16px; color:#8b949e; font-size:13px;">{{ g.date or "—" }}</td>
+        <td class="col-hide-mobile" style="padding:11px 16px; color:#8b949e; font-size:13px;">{{ g.date or "—" }}</td>
         <td style="padding:11px 16px; text-align:right;">
           <a href="/game/{{ g.id }}" class="btn btn-secondary btn-sm">Review</a>
         </td>
