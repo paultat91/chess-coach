@@ -19,9 +19,31 @@
       ⟳ Sync Chess.com
     </button>
     {% endif %}
+    <button class="btn btn-secondary" onclick="analyseAll()"
+            id="analyse-all-btn"
+            title="Analyse all unanalysed games in the background"
+            style="border-color:#58a6ff; color:#58a6ff;">
+      ⚙ Analyse all
+    </button>
     <button class="btn btn-primary" onclick="document.getElementById('import-modal').style.display='flex'">
       + Import PGN
     </button>
+  </div>
+</div>
+
+<!-- Analyse-all progress banner -->
+<div id="analyse-progress"
+     style="display:none; margin-bottom:16px; background:#0c1d3a; border:1px solid #1f6feb;
+            border-radius:8px; padding:12px 16px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+    <span style="font-size:13px; color:#58a6ff; font-weight:600;">
+      ⚙ Background analysis in progress
+    </span>
+    <span id="analyse-progress-count" style="font-size:12px; color:#8b949e;"></span>
+  </div>
+  <div style="height:6px; background:#21262d; border-radius:3px; overflow:hidden;">
+    <div id="analyse-progress-bar" style="height:6px; background:#58a6ff; border-radius:3px;
+                                           transition:width .4s; width:0%;"></div>
   </div>
 </div>
 
@@ -394,4 +416,51 @@ function runSync() {
     </form>
   </div>
 </div>
+
+<script>
+// ── Analyse-all + progress polling ──────────────────────────────────────────
+let pollTimer     = null;
+let trackedJobIds = new Set();
+
+function analyseAll() {
+  const btn = document.getElementById('analyse-all-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⚙ Queuing…'; }
+  fetch('/analyse-all', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.queued === 0) {
+        if (btn) { btn.disabled = false; btn.textContent = '⚙ Analyse all'; }
+        alert('All games are already analysed!');
+        return;
+      }
+      d.job_ids.forEach(id => trackedJobIds.add(id));
+      document.getElementById('analyse-progress').style.display = 'block';
+      if (!pollTimer) pollTimer = setInterval(pollJobs, 3000);
+    })
+    .catch(e => {
+      if (btn) { btn.disabled = false; btn.textContent = '⚙ Analyse all'; }
+      alert('Error: ' + e.message);
+    });
+}
+
+function pollJobs() {
+  fetch('/api/jobs')
+    .then(r => r.json())
+    .then(jobs => {
+      const mine  = jobs.filter(j => trackedJobIds.has(j.id));
+      if (!mine.length) return;
+      const done  = mine.filter(j => j.status === 'done' || j.status === 'error').length;
+      const total = mine.length;
+      const pct   = Math.round(done / total * 100);
+      document.getElementById('analyse-progress-bar').style.width   = pct + '%';
+      document.getElementById('analyse-progress-count').textContent = `${done} / ${total} done`;
+      if (done === total) {
+        clearInterval(pollTimer); pollTimer = null;
+        const btn = document.getElementById('analyse-all-btn');
+        if (btn) { btn.disabled = false; btn.textContent = '⚙ Analyse all'; }
+        setTimeout(() => window.location.reload(), 1500);
+      }
+    });
+}
+</script>
 {% endblock %}

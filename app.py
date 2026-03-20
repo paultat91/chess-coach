@@ -387,6 +387,21 @@ def save_settings():
     return redirect(request.referrer or url_for("index"))
 
 
+@app.route("/analyse-all", methods=["POST"])
+def analyse_all():
+    """Enqueue all unanalysed games as individual background jobs."""
+    games   = database.get_unanalysed_games()
+    job_ids = [worker.enqueue("analyse", game_id=g["id"]) for g in games]
+    return jsonify({"queued": len(job_ids), "job_ids": job_ids})
+
+
+@app.route("/api/jobs")
+def list_jobs():
+    """Return the most recent background jobs for progress display."""
+    jobs = worker.list_jobs(limit=100)
+    return jsonify(jobs)
+
+
 @app.route("/stats")
 def stats():
     player = database.get_setting("player_name", "")
