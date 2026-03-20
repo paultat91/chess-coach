@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Progress — Chess Coach{% endblock %}
+
+{% block content %}
+<h1 style="font-size:22px; font-weight:700; margin-bottom:24px;">Progress &amp; Trends</h1>
+
+{% if not accuracy_series %}
+<div class="card" style="padding:32px; text-align:center; color:#8b949e;">
+  No analysed games yet. Analyse some games to see your progress here.
+</div>
+{% else %}
+
+<!-- Accuracy over time -->
+<div class="card" style="padding:20px; margin-bottom:20px;">
+  <div style="font-size:14px; font-weight:600; color:#e6edf3; margin-bottom:12px;">
+    Accuracy over time
+    <span style="font-size:12px; font-weight:400; color:#8b949e; margin-left:8px;">
+      ({{ accuracy_series | length }} analysed games)
+    </span>
+  </div>
+  <canvas id="acc-chart" height="160"
+          style="width:100%; display:block;"></canvas>
+</div>
+
+<!-- Opening win-rate + Opponent breakdown side by side -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; flex-wrap:wrap;">
+
+  <!-- Opening win-rate bars -->
+  <div class="card" style="padding:20px;">
+    <div style="font-size:14px; font-weight:600; color:#e6edf3; margin-bottom:14px;">
+      Opening win rate
+    </div>
+    {% if opening_stats %}
+    <div>
+      {% for o in opening_stats %}
+      {% set total = o.wins + o.losses + o.draws %}
+      {% set win_pct   = ((o.wins   / total) * 100) | round(0) | int if total else 0 %}
+      {% set draw_pct  = ((o.draws  / total) * 100) | round(0) | int if total else 0 %}
+      {% set loss_pct  = ((o.losses / total) * 100) | round(0) | int if total else 0 %}
+      <div style="margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+          <span style="font-size:12px; color:#e6edf3; overflow:hidden; text-overflow:ellipsis;
+                       white-space:nowrap; max-width:65%;"
+                title="{{ o.opening }}">{{ o.opening }}</span>
+          <span style="font-size:11px; color:#8b949e; white-space:nowrap; margin-left:6px;">
+            {{ o.games }} game{{ 's' if o.games != 1 }}
+          </span>
+        </div>
+        <div style="display:flex; height:8px; border-radius:4px; overflow:hidden; background:#21262d;">
+          {% if win_pct  %}<div style="width:{{ win_pct  }}%; background:#2da44e;"></div>{% endif %}
+          {% if draw_pct %}<div style="width:{{ draw_pct }}%; background:#8b949e;"></div>{% endif %}
+          {% if loss_pct %}<div style="width:{{ loss_pct }}%; background:#f85149;"></div>{% endif %}
+        </div>
+        <div style="font-size:10px; color:#8b949e; margin-top:2px;">
+          {{ win_pct }}% W · {{ draw_pct }}% D · {{ loss_pct }}% L
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex; gap:12px; margin-top:8px; font-size:11px; color:#8b949e;">
+      <span><span style="color:#2da44e;">■</span> Win</span>
+      <span><span style="color:#8b949e;">■</span> Draw</span>
+      <span><span style="color:#f85149;">■</span> Loss</span>
+    </div>
+    {% else %}
+    <p style="color:#8b949e; font-size:13px;">No opening data yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Opponent breakdown -->
+  <div class="card" style="padding:20px;">
+    <div style="font-size:14px; font-weight:600; color:#e6edf3; margin-bottom:14px;">
+      Opponent breakdown
+    </div>
+    {% if opponent_stats %}
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+          <tr style="color:#8b949e; border-bottom:1px solid #21262d;">
+            <th style="text-align:left; padding:4px 6px;">Opponent</th>
+            <th style="text-align:center; padding:4px 6px;">G</th>
+            <th style="text-align:center; padding:4px 6px; color:#2da44e;">W</th>
+            <th style="text-align:center; padding:4px 6px;">D</th>
+            <th style="text-align:center; padding:4px 6px; color:#f85149;">L</th>
+            <th style="text-align:center; padding:4px 6px;">Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in opponent_stats %}
+          {% set score = ((o.wins + o.draws * 0.5) / o.games * 100) | round(0) | int %}
+          <tr style="border-bottom:1px solid #21262d; color:#c9d1d9;">
+            <td style="padding:5px 6px; max-width:140px; overflow:hidden;
+                       text-overflow:ellipsis; white-space:nowrap;">{{ o.opponent }}</td>
+            <td style="text-align:center; padding:5px 6px; color:#8b949e;">{{ o.games }}</td>
+            <td style="text-align:center; padding:5px 6px; color:#2da44e;">{{ o.wins }}</td>
+            <td style="text-align:center; padding:5px 6px; color:#8b949e;">{{ o.draws }}</td>
+            <td style="text-align:center; padding:5px 6px; color:#f85149;">{{ o.losses }}</td>
+            <td style="text-align:center; padding:5px 6px;">
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div style="flex:1; height:5px; background:#21262d; border-radius:3px; overflow:hidden; min-width:40px;">
+                  <div style="width:{{ score }}%; height:5px;
+                               background:{% if score >= 60 %}#2da44e{% elif score >= 40 %}#d4a017{% else %}#f85149{% endif %};
+                               border-radius:3px;"></div>
+                </div>
+                <span style="font-size:11px; color:#8b949e; min-width:30px;">{{ score }}%</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:#8b949e; font-size:13px;">Set your player name in Settings to see opponent stats.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endif %}
+
+<script>
+// ── Accuracy over time line chart ──────────────────────────────────────────
+const series = {{ accuracy_series | tojson }};
+
+(function() {
+  if (!series.length) return;
+  const canvas = document.getElementById('acc-chart');
+  if (!canvas) return;
+  canvas.width = canvas.parentElement.clientWidth || 600;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const PAD = { top: 12, right: 20, bottom: 30, left: 44 };
+  const iW = W - PAD.left - PAD.right;
+  const iH = H - PAD.top  - PAD.bottom;
+
+  const values = series.map(d => d.accuracy);
+  const minV = Math.max(0,   Math.min(...values) - 5);
+  const maxV = Math.min(100, Math.max(...values) + 5);
+
+  const xOf = i  => PAD.left + (i / (series.length - 1)) * iW;
+  const yOf = v  => PAD.top  + iH - ((v - minV) / (maxV - minV)) * iH;
+
+  // Background grid
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth = 1;
+  [0, 25, 50, 75, 100].forEach(g => {
+    if (g < minV || g > maxV) return;
+    const y = yOf(g);
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+    ctx.fillStyle = '#8b949e'; ctx.font = '10px monospace';
+    ctx.fillText(g + '%', 2, y + 4);
+  });
+
+  // Rolling 5-game average
+  const roll = values.map((_, i) => {
+    const slice = values.slice(Math.max(0, i - 4), i + 1);
+    return slice.reduce((a, b) => a + b, 0) / slice.length;
+  });
+
+  // Area fill under line
+  ctx.beginPath();
+  ctx.moveTo(xOf(0), yOf(values[0]));
+  series.forEach((_, i) => ctx.lineTo(xOf(i), yOf(values[i])));
+  ctx.lineTo(xOf(series.length - 1), H - PAD.bottom);
+  ctx.lineTo(xOf(0), H - PAD.bottom);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(88,166,255,0.08)';
+  ctx.fill();
+
+  // Per-game dots
+  series.forEach((d, i) => {
+    ctx.beginPath();
+    ctx.arc(xOf(i), yOf(values[i]), 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#30363d';
+    ctx.fill();
+  });
+
+  // Rolling average line
+  ctx.beginPath();
+  roll.forEach((v, i) => i === 0 ? ctx.moveTo(xOf(i), yOf(v)) : ctx.lineTo(xOf(i), yOf(v)));
+  ctx.strokeStyle = '#58a6ff';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // X-axis date labels (first, last, a few in between)
+  const labelIdxs = [0, Math.floor(series.length / 3), Math.floor(2 * series.length / 3), series.length - 1]
+    .filter((v, i, a) => a.indexOf(v) === i && v < series.length);
+  ctx.fillStyle = '#6e7681'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  labelIdxs.forEach(i => {
+    ctx.fillText((series[i].date || '').slice(0, 10), xOf(i), H - 6);
+  });
+})();
+</script>
+{% endblock %}

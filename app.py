@@ -391,12 +391,11 @@ def export_pgn(game_id):
         if m:
             parts = []
             if m["eval_after"] is not None:
-                # Standard Lichess/ChessBase eval comment format
                 cp = m["eval_after"]
                 if cp >= 9000:
-                    eval_str = f"#{ int(10000 - cp) }"
+                    eval_str = f"#{int(10000 - cp)}"
                 elif cp <= -9000:
-                    eval_str = f"#-{ int(10000 + cp) }"
+                    eval_str = f"#-{int(10000 + cp)}"
                 else:
                     eval_str = f"{cp / 100:+.2f}"
                 parts.append(f"[%eval {eval_str}]")
@@ -421,6 +420,20 @@ def export_pgn(game_id):
         annotated,
         mimetype="application/x-chess-pgn",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.route("/progress")
+def progress():
+    player = database.get_setting("player_name", "")
+    accuracy_series = database.get_accuracy_over_time(player=player, limit=60)
+    opponent_stats  = database.get_opponent_stats(player=player, limit=15) if player else []
+    opening_stats   = database.get_overall_stats(player=player)["opening_stats"]
+    return render_template(
+        "progress.html",
+        accuracy_series=accuracy_series,
+        opponent_stats=opponent_stats,
+        opening_stats=opening_stats,
     )
 
 

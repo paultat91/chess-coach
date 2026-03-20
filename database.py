@@ -467,3 +467,57 @@ def get_overall_stats(player: str = ""):
             "opening_stats": [dict(r) for r in opening_rows],
             "recent_accuracy": [dict(r) for r in recent_rows],
         }
+
+
+def get_accuracy_over_time(player: str = "", limit: int = 50) -> list:
+    """Return (date, accuracy) pairs for the most recent `limit` analysed games."""
+    with get_db() as conn:
+        p = player.lower() if player else None
+        if p:
+            rows = conn.execute(
+                """SELECT g.date,
+                   CASE WHEN lower(g.white)=? THEN gs.white_accuracy
+                        ELSE gs.black_accuracy END as accuracy
+                   FROM games g
+                   JOIN game_stats gs ON g.id = gs.game_id
+                   WHERE (lower(g.white)=? OR lower(g.black)=?) AND g.date IS NOT NULL
+                   ORDER BY g.date ASC, g.id ASC LIMIT ?""",
+                (p, p, p, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT g.date,
+                   (gs.white_accuracy + gs.black_accuracy) / 2.0 as accuracy
+                   FROM games g
+                   JOIN game_stats gs ON g.id = gs.game_id
+                   WHERE g.date IS NOT NULL
+                   ORDER BY g.date ASC, g.id ASC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_opponent_stats(player: str, limit: int = 15) -> list:
+    """Win/draw/loss breakdown vs most-played opponents."""
+    with get_db() as conn:
+        p = player.lower()
+        rows = conn.execute(
+            """SELECT
+               CASE WHEN lower(white)=? THEN black ELSE white END as opponent,
+               COUNT(*) as games,
+               SUM(CASE
+                 WHEN lower(white)=? AND result='1-0' THEN 1
+                 WHEN lower(black)=? AND result='0-1' THEN 1
+                 ELSE 0 END) as wins,
+               SUM(CASE
+                 WHEN lower(white)=? AND result='0-1' THEN 1
+                 WHEN lower(black)=? AND result='1-0' THEN 1
+                 ELSE 0 END) as losses,
+               SUM(CASE WHEN result='1/2-1/2' THEN 1 ELSE 0 END) as draws
+               FROM games
+               WHERE lower(white)=? OR lower(black)=?
+               GROUP BY opponent
+               ORDER BY games DESC LIMIT ?""",
+            (p, p, p, p, p, p, p, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
