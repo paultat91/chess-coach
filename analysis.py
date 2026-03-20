@@ -91,7 +91,8 @@ def analyse_game(pgn_text: str) -> dict:
                 eval_after_cp = score_to_cp(info_after["score"])
 
             # Centipawn loss from the mover's perspective
-            if is_forced:
+            played_is_best = (best_move_uci is not None and move.uci() == best_move_uci)
+            if is_forced or played_is_best:
                 cp_loss = 0.0
             elif color == chess.WHITE:
                 cp_loss = max(0.0, eval_before_cp - eval_after_cp)
