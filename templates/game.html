@@ -202,6 +202,10 @@
           <div id="board"></div>
           <svg id="board-overlay"
                style="position:absolute; top:0; left:0; pointer-events:none; z-index:10;"></svg>
+          <!-- Transparent tap layer: advances move on tap; disabled during training -->
+          <div id="board-tap-layer"
+               style="position:absolute; top:0; left:0; width:100%; height:100%;
+                      z-index:20; cursor:pointer;"></div>
         </div>
         <div id="label-bottom" style="font-size:12px; color:#6e7681; margin-top:4px; padding-left:2px;">
           {{ bottom_name }}{% if my_side %} <span style="color:#56d364; font-weight:700;">← You</span>{% endif %}
@@ -746,20 +750,31 @@ function drawEvalGraph() {
 // Click on graph → jump to that move
 if (GRAPH_CANVAS) {
   GRAPH_CANVAS.addEventListener('click', e => {
+    e.preventDefault();
     const rect = GRAPH_CANVAS.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / GRAPH_CANVAS.getBoundingClientRect().width;
+    const ratio = (e.clientX - rect.left) / rect.width;
     goToMove(Math.round(ratio * (positions.length - 1)));
   });
+  // Prevent touch scroll when swiping/tapping the graph
+  GRAPH_CANVAS.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+  GRAPH_CANVAS.addEventListener('touchend',   e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const rect = GRAPH_CANVAS.getBoundingClientRect();
+    const ratio = (t.clientX - rect.left) / rect.width;
+    goToMove(Math.round(ratio * (positions.length - 1)));
+  }, { passive: false });
 }
 
 // Tap / click the board → advance to next move (convenient on mobile)
-document.getElementById('board').addEventListener('click', e => {
-  // Ignore when training mode is active (board is interactive for dragging)
-  if (trainingActive) return;
-  // Only fire if the click wasn't on a piece drag (chessboard.js fires its own events)
-  if (e.target.closest('.piece-417db')) return;
-  nextMove();
-});
+const _tapLayer = document.getElementById('board-tap-layer');
+if (_tapLayer) {
+  _tapLayer.addEventListener('click', () => {
+    // trainingActive may be undefined if training branch not loaded
+    if (typeof trainingActive !== 'undefined' && trainingActive) return;
+    nextMove();
+  });
+}
 
 // ============================================================
 // Critical moments strip
