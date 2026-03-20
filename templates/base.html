@@ -158,6 +158,7 @@
     <a class="nav-brand" href="/">♟ Chess Coach</a>
     <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="/">Games</a>
     <a class="nav-link {% if request.endpoint == 'stats' %}active{% endif %}" href="/stats">Stats</a>
+    <a class="nav-link {% if request.endpoint == 'progress' %}active{% endif %}" href="/progress">Progress</a>
     <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
       {% if player_name %}
         <span style="font-size:13px; color:#8b949e;">

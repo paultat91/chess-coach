@@ -362,5 +362,19 @@ def stats():
     return render_template("stats.html", stats=data)
 
 
+@app.route("/progress")
+def progress():
+    player = database.get_setting("player_name", "")
+    accuracy_series = database.get_accuracy_over_time(player=player, limit=60)
+    opponent_stats  = database.get_opponent_stats(player=player, limit=15) if player else []
+    opening_stats   = database.get_overall_stats(player=player)["opening_stats"]
+    return render_template(
+        "progress.html",
+        accuracy_series=accuracy_series,
+        opponent_stats=opponent_stats,
+        opening_stats=opening_stats,
+    )
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
