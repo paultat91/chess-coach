@@ -20,21 +20,37 @@ def score_to_cp(score: chess.engine.PovScore) -> float:
     return float(val) if val is not None else 0.0
 
 
-def classify_move(cp_loss: float) -> str:
-    if cp_loss <= 10:
+def cp_to_win_percent(cp_white: float) -> float:
+    """Convert centipawns (from White's POV) to win% for White (0–100).
+
+    Based on Lichess's empirically-derived sigmoid, which maps engine evals
+    to real winning chances.  This is position-aware: the curve flattens near
+    0% and 100%, so huge cp swings in already-decided positions produce only
+    tiny win% changes — preventing the "best move = blunder" artifact.
+    """
+    return 50.0 + 50.0 * (2.0 / (1.0 + math.exp(-0.00368208 * cp_white)) - 1.0)
+
+
+def classify_move(win_loss: float) -> str:
+    """Classify a move by the Win% lost (always >= 0, caller's perspective)."""
+    if win_loss <= 2:
         return "best"
-    if cp_loss <= 25:
+    if win_loss <= 5:
         return "good"
-    if cp_loss <= 60:
+    if win_loss <= 10:
         return "inaccuracy"
-    if cp_loss <= 100:
+    if win_loss <= 20:
         return "mistake"
     return "blunder"
 
 
-def move_accuracy(cp_loss: float) -> float:
-    """Lichess accuracy formula: 0–100 from centipawn loss."""
-    acc = 103.1668 * math.exp(-0.04354 * max(0.0, cp_loss)) - 3.1669
+def move_accuracy(win_loss: float) -> float:
+    """Lichess accuracy formula: 0–100 from win-percent loss.
+
+    The original Lichess equation takes a Win% *drop* as input (not raw cp).
+    103.1668 * exp(-0.04354 * win_loss) - 3.1669, clamped to [0, 100].
+    """
+    acc = 103.1668 * math.exp(-0.04354 * max(0.0, win_loss)) - 3.1669
     return round(max(0.0, min(100.0, acc)), 1)
 
 
@@ -90,8 +106,25 @@ def analyse_game(pgn_text: str) -> dict:
                 )
                 eval_after_cp = score_to_cp(info_after["score"])
 
-            # Centipawn loss from the mover's perspective
+            # Win% loss from the mover's perspective.
+            # Using Win% (not raw cp) makes the metric position-independent:
+            # a 500 cp swing when already losing by 1000 cp barely moves Win%,
+            # so deeply losing positions don't produce phantom "blunders".
+            win_before = cp_to_win_percent(eval_before_cp)
+            win_after  = cp_to_win_percent(eval_after_cp)
+
             played_is_best = (best_move_uci is not None and move.uci() == best_move_uci)
+            if is_forced or played_is_best:
+                win_loss = 0.0
+            elif color == chess.WHITE:
+                win_loss = max(0.0, win_before - win_after)
+            else:
+                # For black, higher cp = worse, so win% for Black = 100 - win_white
+                win_before_black = 100.0 - win_before
+                win_after_black  = 100.0 - win_after
+                win_loss = max(0.0, win_before_black - win_after_black)
+
+            # Keep cp_loss stored for display purposes (eval graph, etc.)
             if is_forced or played_is_best:
                 cp_loss = 0.0
             elif color == chess.WHITE:
@@ -99,8 +132,8 @@ def analyse_game(pgn_text: str) -> dict:
             else:
                 cp_loss = max(0.0, eval_after_cp - eval_before_cp)
 
-            classification = classify_move(cp_loss)
-            accuracy = move_accuracy(cp_loss)
+            classification = classify_move(win_loss)
+            accuracy = move_accuracy(win_loss)
 
             moves_data.append(
                 {
