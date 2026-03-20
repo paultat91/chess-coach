@@ -839,23 +839,33 @@ redrawOverlay();
 <!-- Analysis trigger (works whether analyzed or not) -->
 <script>
 function startAnalysis(gameId) {
-  const btn = document.getElementById('analyse-btn');
+  const btn  = document.getElementById('analyse-btn');
   const idle = document.getElementById('idle-content');
   const busy = document.getElementById('analyzing-content');
-  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Queued…'; }
   if (idle) idle.style.display = 'none';
   if (busy) busy.style.display = 'block';
 
   fetch(`/game/${gameId}/analyse`, { method: 'POST' })
     .then(r => r.json())
     .then(d => {
-      if (d.success) { window.location.reload(); }
-      else {
-        alert('Analysis failed: ' + d.error);
-        if (btn) { btn.disabled = false; btn.textContent = 'Analyse Game'; }
-        if (idle) idle.style.display = 'block';
-        if (busy) busy.style.display = 'none';
-      }
+      if (d.error) throw new Error(d.error);
+      if (btn) btn.textContent = 'Analyzing…';
+      // Poll job status every 2 s
+      const pollInterval = setInterval(() => {
+        fetch(`/api/job/${d.job_id}`)
+          .then(r => r.json())
+          .then(s => {
+            if (s.status === 'done')  { clearInterval(pollInterval); window.location.reload(); }
+            if (s.status === 'error') {
+              clearInterval(pollInterval);
+              alert('Analysis failed: ' + s.error);
+              if (btn) { btn.disabled = false; btn.textContent = 'Analyse Game'; }
+              if (idle) idle.style.display = 'block';
+              if (busy) busy.style.display = 'none';
+            }
+          });
+      }, 2000);
     })
     .catch(e => {
       alert('Error: ' + e.message);

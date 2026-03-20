@@ -18,6 +18,7 @@ import analysis as analysis_module
 import database
 from openings import resolve_opening
 import sync as sync_module
+import worker
 
 _CLK_RE = re.compile(r'\[%clk (\d+):(\d+):(\d+(?:\.\d+)?)\]')
 
@@ -296,15 +297,25 @@ def get_pv():
 
 @app.route("/game/<int:game_id>/analyse", methods=["POST"])
 def analyse_game(game_id):
+    """Submit analysis to the background worker; return job_id immediately."""
     game = database.get_game(game_id)
     if not game:
         return jsonify({"error": "Game not found"}), 404
-    try:
-        result = analysis_module.analyse_game(game["pgn"])
-        database.save_analysis(game_id, result["moves"], result["stats"])
-        return jsonify({"success": True})
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+    job_id = worker.enqueue("analyse", game_id=game_id)
+    return jsonify({"job_id": job_id, "status": "pending"})
+
+
+@app.route("/api/job/<job_id>")
+def job_status(job_id):
+    """Poll the status of a background job."""
+    job = worker.status(job_id)
+    if job is None:
+        return jsonify({"error": "Job not found"}), 404
+    if job["status"] == worker.JOB_DONE:
+        return jsonify({"status": "done", "result": job["result"]})
+    if job["status"] == worker.JOB_ERROR:
+        return jsonify({"status": "error", "error": job["error"]})
+    return jsonify({"status": job["status"]})
 
 
 @app.route("/game/<int:game_id>/delete", methods=["POST"])

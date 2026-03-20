@@ -281,6 +281,14 @@ def get_critical_moves(game_id: int, n: int = 5) -> list:
         return result
 
 
+def get_unanalysed_games() -> list:
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, pgn FROM games WHERE analyzed = 0 ORDER BY id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def save_analysis(game_id: int, moves_data: list, stats: dict):
     with get_db() as conn:
         conn.execute("DELETE FROM moves WHERE game_id = ?", (game_id,))
