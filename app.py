@@ -398,7 +398,7 @@ def export_pgn(game_id):
                 elif cp <= -9000:
                     eval_str = f"#-{ int(10000 + cp) }"
                 else:
-                    eval_str = f"{ cp / 100:+.2f }"
+                    eval_str = f"{cp / 100:+.2f}"
                 parts.append(f"[%eval {eval_str}]")
             if m["classification"] and m["classification"] != "best":
                 parts.append(m["classification"].capitalize())
