@@ -38,6 +38,14 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner { width: 20px; height: 20px; border: 2px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: spin .7s linear infinite; }
 
+  /* Time-pressure flag */
+  .clk-pressure { color: #f85149 !important; font-weight: 600; }
+
+  /* Side-by-side comparison */
+  #compare-panel { display:none; }
+  #compare-panel .compare-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; text-align:center; margin-bottom:4px; }
+  .compare-board-wrap { display:flex; gap:20px; justify-content:center; flex-wrap:wrap; }
+
   /* ── Mobile ─────────────────────────────────────────────── */
   @media (max-width: 700px) {
     /* Board, overlay, and eval bar sizes are now set by JS (BOARD_SIZE).
@@ -263,6 +271,23 @@
     <div class="move-detail" id="move-detail" style="width:432px; margin-top:10px;">
       <span style="color:#484f58;">Navigate moves to see analysis</span>
     </div>
+
+    <!-- Side-by-side comparison (shown for mistakes & blunders) -->
+    <div id="compare-panel"
+         style="margin-top:12px; padding:12px 16px; background:#161b22;
+                border:1px solid #30363d; border-radius:8px; width:432px; box-sizing:border-box;">
+      <div class="compare-board-wrap">
+        <div style="text-align:center;">
+          <div class="compare-label" style="color:#f85149;">You played</div>
+          <div id="board-played" style="width:190px;"></div>
+        </div>
+        <div style="text-align:center;">
+          <div class="compare-label" style="color:#2da44e;">Engine best</div>
+          <div id="board-best" style="width:190px;"></div>
+        </div>
+      </div>
+      <div style="text-align:center; margin-top:8px; font-size:12px; color:#8b949e;" id="compare-note"></div>
+    </div>
   </div>
 
   <!-- Right: move list -->
@@ -297,7 +322,13 @@
                 onclick="goToMove({{ idx + 1 }})">
           <span class="cls-dot cls-{{ move.classification }}"></span>
           {{ move.san }}
-          {% if move.clock %}<span class="move-clk">{{ move.clock }}</span>{% endif %}
+          {% if move.clock %}
+            {%- set clk_parts = move.clock.split(':') %}
+            {%- set clk_secs  = (clk_parts[0]|int * 3600 + clk_parts[1]|int * 60 + clk_parts[2]|int) if clk_parts|length == 3 else (clk_parts[0]|int * 60 + clk_parts[1]|int) if clk_parts|length == 2 else clk_parts[0]|int %}
+            <span class="move-clk{% if clk_secs <= 10 %} clk-pressure{% endif %}">
+              {% if clk_secs <= 10 %}⚡{% endif %}{{ move.clock }}
+            </span>
+          {% endif %}
         </button>
       {% if move.color == 'black' or loop.last %}
       </div>
@@ -309,6 +340,7 @@
 
 <!-- JS deps -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
 <script>
 const moves     = {{ moves_json | safe }};
@@ -418,6 +450,7 @@ function goToMove(idx) {
   updateMoveDetail(idx);
   updateMoveCounter(idx);
   highlightMove(idx);
+  updateCompare(idx);
   redrawOverlay();
   drawEvalGraph();
 }
@@ -430,6 +463,8 @@ let currentOrientation = orientation;
 function flipBoard() {
   board.flip();
   currentOrientation = currentOrientation === 'white' ? 'black' : 'white';
+  if (boardPlayed) boardPlayed.flip();
+  if (boardBest)   boardBest.flip();
   const top    = document.getElementById('label-top');
   const bottom = document.getElementById('label-bottom');
   const topText    = top.innerText.trim();
@@ -440,9 +475,78 @@ function flipBoard() {
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowRight') nextMove();
-  if (e.key === 'ArrowLeft')  prevMove();
+  // Ignore shortcuts when typing in an input
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+  if (e.key === 'ArrowRight' || e.key === 'f') nextMove();
+  if (e.key === 'ArrowLeft'  || e.key === 'd') prevMove();
+  if (e.key === 'Home'       || e.key === 'g') goToMove(0);
+  if (e.key === 'End'        || e.key === 'G') goToMove(positions.length - 1);
+  if (e.key === 'F' || e.key === 'r')          flipBoard();
+  // Jump to next blunder/mistake
+  if (e.key === 'n' || e.key === 'N') {
+    const dir = e.key === 'n' ? 1 : -1;
+    let i = currentIdx + dir;
+    while (i > 0 && i <= moves.length) {
+      const cls = moves[i - 1].classification;
+      if (cls === 'blunder' || cls === 'mistake') { goToMove(i); break; }
+      i += dir;
+    }
+  }
 });
+
+// ============================================================
+// Side-by-side comparison boards for mistakes / blunders
+// ============================================================
+let boardPlayed = null, boardBest = null;
+
+function initCompareBoards() {
+  if (boardPlayed) return;  // already initialised
+  const opts = {
+    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+    draggable: false,
+  };
+  boardPlayed = Chessboard('board-played', { ...opts, position: 'start' });
+  boardBest   = Chessboard('board-best',   { ...opts, position: 'start' });
+}
+
+function updateCompare(idx) {
+  const panel = document.getElementById('compare-panel');
+  const note  = document.getElementById('compare-note');
+  if (!panel) return;
+  if (idx === 0) { panel.style.display = 'none'; return; }
+
+  const m = moves[idx - 1];
+  if (!m || (m.classification !== 'blunder' && m.classification !== 'mistake')) {
+    panel.style.display = 'none';
+    return;
+  }
+  if (!m.best_move_uci || m.best_move_uci === m.uci) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+  initCompareBoards();
+
+  // Position BEFORE the move
+  const fenBefore = positions[idx - 1];
+  const orient    = currentOrientation;
+
+  // Apply the actual move to get "played" position
+  const chessPlayed = new Chess(fenBefore);
+  chessPlayed.move({ from: m.uci.slice(0,2), to: m.uci.slice(2,4), promotion: m.uci[4] || 'q' });
+  boardPlayed.orientation(orient);
+  boardPlayed.position(chessPlayed.fen(), false);
+
+  // Apply the best move to get "best" position
+  const chessBest = new Chess(fenBefore);
+  chessBest.move({ from: m.best_move_uci.slice(0,2), to: m.best_move_uci.slice(2,4), promotion: m.best_move_uci[4] || 'q' });
+  boardBest.orientation(orient);
+  boardBest.position(chessBest.fen(), false);
+
+  const loss = m.cp_loss ? `−${(m.cp_loss / 100).toFixed(2)} pawns` : '';
+  note.textContent = `${m.san} was a ${m.classification} ${loss ? '(' + loss + ')' : ''} — best was ${m.best_move_san}`;
+}
 
 // ============================================================
 // Board overlay — last move · best move (engine) · PV · next moves played
