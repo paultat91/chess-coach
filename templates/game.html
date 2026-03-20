@@ -220,6 +220,17 @@
       <button class="btn btn-secondary btn-sm" onclick="flipBoard()" title="Flip board" style="margin-left:6px;">⇅ Flip</button>
     </div>
 
+    <!-- Eval graph -->
+    {% if game.analyzed %}
+    <div style="margin-top:10px; padding-left:28px;">
+      <canvas id="eval-graph"
+              width="432" height="68"
+              title="Click to jump to any move"
+              style="display:block; border-radius:6px; cursor:crosshair;
+                     border:1px solid #21262d;"></canvas>
+    </div>
+    {% endif %}
+
     <!-- Overlay toggles -->
     <div class="overlay-row" style="display:flex; align-items:center; gap:6px; margin-top:10px; padding-left:28px; flex-wrap:wrap;">
       <button id="toggle-last"  onclick="toggleOverlay('last')"
@@ -393,6 +404,7 @@ function goToMove(idx) {
   updateMoveCounter(idx);
   highlightMove(idx);
   redrawOverlay();
+  drawEvalGraph();
 }
 
 function nextMove() { goToMove(currentIdx + 1); }
@@ -600,8 +612,100 @@ function setAhead(n) {
 syncToggleBtn('toggle-last', showLastMove);
 syncToggleBtn('toggle-best', showBestMove);
 
+// ============================================================
+// Eval graph — clickable sparkline showing eval across the game
+// ============================================================
+const GRAPH_CANVAS = document.getElementById('eval-graph');
+
+// Clamp centipawns to ±1000 then map to a [0,1] fill fraction
+// (1 = all-white, 0 = all-black, 0.5 = equal)
+function cpToFrac(cp) {
+  if (cp == null) return 0.5;
+  if (cp >=  9000) return 1.0;   // forced mate for white
+  if (cp <= -9000) return 0.0;   // forced mate for black
+  return 0.5 + Math.max(-1000, Math.min(1000, cp)) / 2000;
+}
+
+function drawEvalGraph() {
+  if (!GRAPH_CANVAS) return;
+  const ctx = GRAPH_CANVAS.getContext('2d');
+  const W = GRAPH_CANVAS.width, H = GRAPH_CANVAS.height;
+
+  // Build eval array: [0 at start, then eval_after for each move]
+  const evals = [0, ...moves.map(m => m.eval_after ?? 0)];
+  const n = evals.length;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  if (n < 2) return;
+
+  const xOf = i => (i / (n - 1)) * W;
+  const yOf = cp => H * (1 - cpToFrac(cp));   // y=0 at top (white winning)
+
+  // White advantage area (above midline → filled white)
+  ctx.beginPath();
+  ctx.moveTo(xOf(0), H / 2);
+  for (let i = 0; i < n; i++) ctx.lineTo(xOf(i), Math.min(yOf(evals[i]), H / 2));
+  ctx.lineTo(xOf(n - 1), H / 2);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(230,230,230,0.88)';
+  ctx.fill();
+
+  // Black advantage area (below midline → filled dark)
+  ctx.beginPath();
+  ctx.moveTo(xOf(0), H / 2);
+  for (let i = 0; i < n; i++) ctx.lineTo(xOf(i), Math.max(yOf(evals[i]), H / 2));
+  ctx.lineTo(xOf(n - 1), H / 2);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(30,30,30,0.92)';
+  ctx.fill();
+
+  // Midline
+  ctx.strokeStyle = '#30363d';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, H / 2);
+  ctx.lineTo(W, H / 2);
+  ctx.stroke();
+
+  // Blunder markers — red dots for blunder moves
+  moves.forEach((m, i) => {
+    if (m.classification === 'blunder') {
+      const x = xOf(i + 1);
+      const y = yOf(evals[i + 1]);
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#f85149';
+      ctx.fill();
+    }
+  });
+
+  // Current position cursor — thin blue vertical line
+  const cx = xOf(currentIdx);
+  ctx.strokeStyle = '#58a6ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, 0);
+  ctx.lineTo(cx, H);
+  ctx.stroke();
+}
+
+// Click on graph → jump to that move
+if (GRAPH_CANVAS) {
+  GRAPH_CANVAS.addEventListener('click', e => {
+    const rect = GRAPH_CANVAS.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / GRAPH_CANVAS.getBoundingClientRect().width;
+    goToMove(Math.round(ratio * (positions.length - 1)));
+  });
+}
+
 // Initialise
 updateEvalBar(0);
+drawEvalGraph();
 redrawOverlay();
 </script>
 {% endif %}
