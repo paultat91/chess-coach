@@ -538,3 +538,61 @@ def get_opponent_stats(player: str, limit: int = 15) -> list:
             (p, p, p, p, p, p, p, limit),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def get_opening_gaps(player: str, min_games: int = 2) -> list:
+    """
+    For each opening, return the average move number of the player's FIRST
+    significant error (inaccuracy/mistake/blunder) in the first 20 moves,
+    plus the average opening-phase accuracy (moves 1–15).
+
+    Sorted by avg_first_error ASC — the earlier you go wrong, the bigger the gap.
+    """
+    with get_db() as conn:
+        p = player.lower()
+        rows = conn.execute(
+            """
+            WITH player_moves AS (
+                SELECT g.id      AS game_id,
+                       g.opening,
+                       m.move_number,
+                       m.classification,
+                       m.accuracy
+                FROM games g
+                JOIN moves m ON m.game_id = g.id
+                WHERE (lower(g.white)=:p OR lower(g.black)=:p)
+                  AND g.opening IS NOT NULL AND g.opening != ''
+                  AND (
+                    (lower(g.white)=:p AND m.color='white') OR
+                    (lower(g.black)=:p AND m.color='black')
+                  )
+            ),
+            first_errors AS (
+                SELECT game_id, opening,
+                       MIN(CASE WHEN classification IN ('inaccuracy','mistake','blunder')
+                                 AND move_number <= 20 THEN move_number END) AS first_error_move
+                FROM player_moves
+                GROUP BY game_id, opening
+            ),
+            opening_acc AS (
+                SELECT game_id, opening,
+                       AVG(accuracy) AS opening_accuracy
+                FROM player_moves
+                WHERE move_number <= 15
+                GROUP BY game_id, opening
+            )
+            SELECT fe.opening,
+                   COUNT(*)                   AS games,
+                   AVG(fe.first_error_move)   AS avg_first_error,
+                   AVG(oa.opening_accuracy)   AS avg_opening_acc
+            FROM first_errors fe
+            JOIN opening_acc oa ON oa.game_id = fe.game_id AND oa.opening = fe.opening
+            WHERE fe.first_error_move IS NOT NULL
+            GROUP BY fe.opening
+            HAVING games >= :min_games
+            ORDER BY avg_first_error ASC
+            LIMIT 15
+            """,
+            {"p": p, "min_games": min_games},
+        ).fetchall()
+        return [dict(r) for r in rows]

@@ -444,5 +444,12 @@ def progress():
     )
 
 
+@app.route("/opening-gaps")
+def opening_gaps():
+    player = database.get_setting("player_name", "")
+    gaps = database.get_opening_gaps(player=player) if player else []
+    return render_template("opening_gaps.html", gaps=gaps, player=player)
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

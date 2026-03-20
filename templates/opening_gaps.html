@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Opening Gaps — Chess Coach{% endblock %}
+
+{% block content %}
+<h1 style="font-size:22px; font-weight:700; margin-bottom:6px;">Opening Preparation Gaps</h1>
+<p style="color:#8b949e; font-size:13px; margin-bottom:24px;">
+  Openings where you tend to make your first error earliest — sorted by the average move
+  number of your first inaccuracy, mistake, or blunder in the opening phase (moves 1–20).
+  Lower move number = you go wrong sooner = bigger gap to work on.
+</p>
+
+{% if not player %}
+<div class="card" style="padding:24px; text-align:center; color:#8b949e;">
+  Set your player name in ⚙ Settings to see your opening gaps.
+</div>
+
+{% elif not gaps %}
+<div class="card" style="padding:24px; text-align:center; color:#8b949e;">
+  Not enough data yet. You need at least 2 analysed games per opening.
+</div>
+
+{% else %}
+<div class="card" style="padding:0; overflow:hidden;">
+  <table style="width:100%; border-collapse:collapse; font-size:13px;">
+    <thead>
+      <tr style="color:#8b949e; font-size:11px; font-weight:600; text-transform:uppercase;
+                 letter-spacing:.5px; border-bottom:1px solid #30363d;">
+        <th style="text-align:left;   padding:10px 16px;">Opening</th>
+        <th style="text-align:center; padding:10px 12px;">Games</th>
+        <th style="text-align:center; padding:10px 12px;">Avg first error</th>
+        <th style="text-align:left;   padding:10px 16px; min-width:160px;">Error timeline</th>
+        <th style="text-align:center; padding:10px 12px;">Opening acc %</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in gaps %}
+      {% set err_move  = g.avg_first_error | round(1) %}
+      {% set acc       = g.avg_opening_acc | round(1) %}
+      {# bar: move 1 = far left, move 20 = far right #}
+      {% set bar_pct   = ((err_move - 1) / 19 * 100) | round(0) | int %}
+      {% set sev_color = '#f85149' if err_move <= 5 else ('#e07b39' if err_move <= 10 else '#d4a017') %}
+      <tr style="border-bottom:1px solid #21262d; color:#c9d1d9;">
+        <td style="padding:10px 16px; max-width:220px; overflow:hidden;
+                   text-overflow:ellipsis; white-space:nowrap;"
+            title="{{ g.opening }}">{{ g.opening }}</td>
+        <td style="text-align:center; padding:10px 12px; color:#8b949e;">{{ g.games }}</td>
+        <td style="text-align:center; padding:10px 12px;">
+          <span style="font-weight:700; color:{{ sev_color }};">
+            move {{ err_move }}
+          </span>
+        </td>
+        <td style="padding:10px 16px;">
+          {# Timeline: grey track, coloured marker at error position #}
+          <div style="position:relative; height:10px; background:#21262d;
+                      border-radius:5px; overflow:visible; min-width:120px;">
+            <div style="position:absolute; left:{{ bar_pct }}%; top:50%;
+                        transform:translate(-50%,-50%);
+                        width:12px; height:12px; border-radius:50%;
+                        background:{{ sev_color }};
+                        box-shadow:0 0 0 2px #161b22;"></div>
+            {# move 5 / move 10 / move 15 tick marks #}
+            {% for tick in [5, 10, 15] %}
+            {% set tp = ((tick - 1) / 19 * 100) | round(0) | int %}
+            <div style="position:absolute; left:{{ tp }}%; top:100%;
+                        width:1px; height:4px; background:#30363d;
+                        transform:translateX(-50%); margin-top:1px;"></div>
+            {% endfor %}
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:9px;
+                      color:#484f58; margin-top:6px; padding:0 1px;">
+            <span>1</span><span>5</span><span>10</span><span>15</span><span>20</span>
+          </div>
+        </td>
+        <td style="text-align:center; padding:10px 12px;">
+          <span style="color:{% if acc >= 80 %}#56d364{% elif acc >= 65 %}#d4a017{% else %}#f85149{% endif %};">
+            {{ acc }}%
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p style="color:#484f58; font-size:11px; margin-top:12px;">
+  ⚡ = first error on move ≤5 &nbsp;|&nbsp;
+  🟠 = move 6–10 &nbsp;|&nbsp;
+  🟡 = move 11–20 &nbsp;&nbsp;
+  Only openings with ≥ 2 analysed games are shown.
+</p>
+{% endif %}
+{% endblock %}
